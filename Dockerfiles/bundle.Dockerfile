@@ -1,7 +1,7 @@
 FROM scratch
 #testing ci
 # Core bundle labels.
-#labelss
+#labelssING
 #correct
 LABEL operators.operatorframework.io.bundle.mediatype.v1=registry+v1
 LABEL operators.operatorframework.io.bundle.manifests.v1=manifests/
