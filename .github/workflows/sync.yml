@@ -1,0 +1,23 @@
+name: Notify Bundle Sync Repo
+
+on:
+  push:
+    paths:
+      - 'bundle/**'
+      - 'Dockerfiles/bundle.Dockerfile'
+    branches:
+      - 'rhoai-2.*'  # Adjust this to your branch pattern
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify bundle-sync repo
+        uses: octokit/request-action@v2.x
+        with:
+          route: POST /repos/{owner}/{repo}/dispatches
+          owner: DevOps-automation-tasks
+          repo: bundle-sync
+          event_type: sync-bundle
+          client_payload: '{"ref": "${{ github.ref }}"}'
+          token: ${{ secrets.GITHUB_TOKEN }}
