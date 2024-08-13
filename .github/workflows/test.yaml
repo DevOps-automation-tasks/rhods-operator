@@ -1,0 +1,27 @@
+name: Test Workflow
+
+on:
+  push:
+    paths:
+      - '**'
+    branches:
+      - '**'
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to sync'
+        required: true
+        type: string
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+        
+      - name: Display Files Changed
+        run: |
+          echo "Files changed in this push:"
+          git diff --name-only ${{ github.event.before }} ${{ github.event.after }}
