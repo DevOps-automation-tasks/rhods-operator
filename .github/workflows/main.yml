@@ -1,0 +1,20 @@
+name: Trigger Sync Workflow
+
+on:
+  push:
+    branches:
+      - 'rhoai-*'
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Workflow in Bundle-Sync Repo
+        run: |
+          curl -X POST \
+            -H "Authorization: token ${{ secrets.BUNDLE_SYNC_TOKEN }}" \
+            -H "Accept: application/vnd.github.everest-preview+json" \
+            https://api.github.com/repos/DevOps-automation-tasks/bundle-sync/dispatches \
+            -d '{"event_type": "sync", "client_payload": { "branch": "${{ github.ref_name }}" }}'
+        env:
+          PAT: ${{ secrets.BUNDLE_SYNC_TOKEN }}
