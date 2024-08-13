@@ -1,0 +1,59 @@
+name: new sync
+
+on:
+  push:
+    paths:
+      - 'bundle/**'
+      - 'Dockerfiles/bundle.Dockerfile'
+    branches:
+      - 'rhoai-*'
+
+jobs:
+  sync-bundle:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Operator Repo
+        uses: actions/checkout@v3
+
+      - name: Set Up Git for RBC Repo
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Checkout RBC Repo
+        uses: actions/checkout@v3
+        with:
+          repository: DevOps-automation-tasks/RHOAI-Build-Config
+          token: ${{ secrets.BUNDLE_SYNC_TOKEN }}
+          path: rbc-repo
+
+      - name: Retain Image Digests
+        run: |
+          cp rbc-repo/bundle/manifests/*.clusterserviceversion.yaml current_csv.yaml
+          IMG_DIGEST=$(grep -oP '(?<=image: ).*(?=@sha256)' current_csv.yaml)
+          sed -i "s|image:.*|image: $IMG_DIGEST|g" bundle/manifests/*.clusterserviceversion.yaml
+
+      - name: Remove Unwanted Fields
+        run: |
+          sed -i '/channels/d' bundle/manifests/*.clusterserviceversion.yaml
+          sed -i '/defaultChannel/d' bundle/manifests/*.clusterserviceversion.yaml
+          sed -i '/replaces/d' bundle/manifests/*.clusterserviceversion.yaml
+          sed -i '/skipRange/d' bundle/manifests/*.clusterserviceversion.yaml
+
+      - name: Sync Files to RBC Repo
+        run: |
+          rsync -av --delete --exclude '*.yaml' bundle/ rbc-repo/bundle/
+          rsync -av --delete bundle/manifests/ rbc-repo/bundle/manifests/
+          rsync -av --delete bundle/metadata/ rbc-repo/bundle/metadata/
+          rsync -av --delete bundle/customresourcedefinitions/ rbc-repo/bundle/customresourcedefinitions/
+          cp bundle/Dockerfile rbc-repo/Dockerfiles/bundle.Dockerfile
+
+      - name: Commit and Push Changes to RBC Repo
+        run: |
+          cd rbc-repo
+          git add .
+          git commit -m "Sync bundle from Operator Repo"
+          git push origin ${{ github.ref_name }}
+        env:
+          BUNDLE_SYNC_TOKEN: ${{ secrets.BUNDLE_SYNC_TOKEN }}
