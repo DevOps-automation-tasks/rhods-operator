@@ -7,6 +7,12 @@ on:
     paths:
       - 'bundle/**'
       - 'Dockerfiles/bundle.Dockerfile'
+  pull_request:
+    branches:
+      - '**'  # Trigger on PRs targeting any branch
+    paths:
+      - 'bundle/**'
+      - 'Dockerfiles/bundle.Dockerfile'
   workflow_dispatch:
     inputs:
       branch:
