@@ -2,7 +2,7 @@
 ARG GOLANG_VERSION=1.21
 ARG USE_LOCAL=false
 ARG OVERWRITE_MANIFESTS=""
-
+####
 ################################################################################
 FROM registry.access.redhat.com/ubi8/go-toolset:$GOLANG_VERSION as builder_local_false
 ARG OVERWRITE_MANIFESTS
