@@ -2,6 +2,7 @@ FROM scratch
 #test-ci
 # Core bundle labels.
 #test
+#21
 #testts-01
 #r-test
 LABEL operators.operatorframework.io.bundle.mediatype.v1=registry+v1
