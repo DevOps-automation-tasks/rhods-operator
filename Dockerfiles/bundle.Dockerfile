@@ -1,6 +1,7 @@
 FROM scratch
 #test-ci
 # Core bundle labels.
+#test
 #testts-01
 LABEL operators.operatorframework.io.bundle.mediatype.v1=registry+v1
 LABEL operators.operatorframework.io.bundle.manifests.v1=manifests/
