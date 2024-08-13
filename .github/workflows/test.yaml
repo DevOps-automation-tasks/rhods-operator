@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - '**'  # Trigger on pushes to any branch
+    paths:
+      - 'bundle/**'
+      - 'Dockerfiles/bundle.Dockerfile'
   workflow_dispatch:
     inputs:
       branch:
@@ -29,13 +32,17 @@ jobs:
           repository: DevOps-automation-tasks/rhods-operator
           token: ${{ secrets.AUTOMATION_SYNC }}
           ref: ${{ github.event.inputs.branch || github.ref }}
+          fetch-depth: 0  # Fetch all history
 
       - name: Debug Event Data
         run: |
           echo "Event name: ${{ github.event_name }}"
           echo "Branch ref: ${{ github.ref }}"
           echo "Commit message: ${{ github.event.head_commit.message }}"
+          echo "Event before: ${{ github.event.before }}"
+          echo "Event after: ${{ github.event.after }}"
           echo "Files changed:"
+          git fetch origin
           git diff --name-only ${{ github.event.before }} ${{ github.event.after }}
 
       - name: Checkout RHOAI-Build-Config repo
@@ -45,12 +52,14 @@ jobs:
           token: ${{ secrets.AUTOMATION_SYNC }}
           path: rbc_repo
           ref: ${{ github.event.inputs.branch || github.ref }}
+          fetch-depth: 0  # Fetch all history
 
       - name: Sync bundle to RBC repo
         run: |
           mkdir -p rbc_repo/bundle/
           cp -r bundle/* rbc_repo/bundle/
           cp Dockerfiles/bundle.Dockerfile rbc_repo/bundle/Dockerfile
+          echo "Files synced to RBC repo."
 
       - name: Update local branch and commit changes
         run: |
