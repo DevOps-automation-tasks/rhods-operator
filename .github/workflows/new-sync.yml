@@ -1,4 +1,4 @@
-name: new sync
+name: Sync Bundle to RBC Repo
 
 on:
   push:
@@ -6,54 +6,59 @@ on:
       - 'bundle/**'
       - 'Dockerfiles/bundle.Dockerfile'
     branches:
-      - 'rhoai-*'
+      - '**'
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to sync'
+        required: true
+        type: string
+  schedule:
+    - cron: '0 0 * * *'  # Adjust the schedule as needed
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
 
 jobs:
-  sync-bundle:
+  sync:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Operator Repo
+      - name: Checkout rhods-operator repo
         uses: actions/checkout@v3
+        with:
+          repository: DevOps-automation-tasks/rhods-operator
+          token: ${{ secrets.BUNDLE_SYNC_TOKEN }}
+          ref: ${{ github.event.inputs.branch || github.ref }}
 
-      - name: Set Up Git for RBC Repo
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Checkout RBC Repo
+      - name: Checkout RHOAI-Build-Config repo
         uses: actions/checkout@v3
         with:
           repository: DevOps-automation-tasks/RHOAI-Build-Config
           token: ${{ secrets.BUNDLE_SYNC_TOKEN }}
-          path: rbc-repo
+          path: rbc_repo
+          ref: ${{ github.event.inputs.branch || github.ref }}
 
-      - name: Retain Image Digests
+      - name: Sync bundle to RBC repo
         run: |
-          cp rbc-repo/bundle/manifests/*.clusterserviceversion.yaml current_csv.yaml
-          IMG_DIGEST=$(grep -oP '(?<=image: ).*(?=@sha256)' current_csv.yaml)
-          sed -i "s|image:.*|image: $IMG_DIGEST|g" bundle/manifests/*.clusterserviceversion.yaml
+          mkdir -p rbc_repo/bundle/
+          cp -r bundle/* rbc_repo/bundle/
+          cp Dockerfiles/bundle.Dockerfile rbc_repo/bundle/Dockerfile
 
-      - name: Remove Unwanted Fields
+      - name: Update local branch and commit changes
         run: |
-          sed -i '/channels/d' bundle/manifests/*.clusterserviceversion.yaml
-          sed -i '/defaultChannel/d' bundle/manifests/*.clusterserviceversion.yaml
-          sed -i '/replaces/d' bundle/manifests/*.clusterserviceversion.yaml
-          sed -i '/skipRange/d' bundle/manifests/*.clusterserviceversion.yaml
-
-      - name: Sync Files to RBC Repo
-        run: |
-          rsync -av --delete --exclude '*.yaml' bundle/ rbc-repo/bundle/
-          rsync -av --delete bundle/manifests/ rbc-repo/bundle/manifests/
-          rsync -av --delete bundle/metadata/ rbc-repo/bundle/metadata/
-          rsync -av --delete bundle/customresourcedefinitions/ rbc-repo/bundle/customresourcedefinitions/
-          cp bundle/Dockerfile rbc-repo/Dockerfiles/bundle.Dockerfile
-
-      - name: Commit and Push Changes to RBC Repo
-        run: |
-          cd rbc-repo
+          cd rbc_repo
+          git fetch origin
+          git checkout ${{ github.event.inputs.branch || github.ref }}
+          git pull origin ${{ github.event.inputs.branch || github.ref }}
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
           git add .
-          git commit -m "Sync bundle from Operator Repo"
-          git push origin ${{ github.ref_name }}
-        env:
-          BUNDLE_SYNC_TOKEN: ${{ secrets.BUNDLE_SYNC_TOKEN }}
+          git commit -m "Sync bundle changes from rhods-operator repo" || echo "No changes to commit"
+
+      - name: Push changes to RBC repo
+        run: |
+          cd rbc_repo
+          git push origin ${{ github.event.inputs.branch || github.ref }}
