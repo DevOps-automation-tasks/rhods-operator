@@ -22,10 +22,10 @@ on:
   schedule:
     - cron: '0 0 * * *'  # Optional: Run on a schedule
 
-permissions:
-  contents: read
-  packages: write
-  id-token: write
+# permissions:
+#   contents: read
+#   packages: write
+#   id-token: write
 
 jobs:
   sync:
