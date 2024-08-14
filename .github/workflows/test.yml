@@ -6,7 +6,7 @@ on:
       - 'bundle/**'  # Adjust the path to match where the bundle files are located
       - 'Dockerfiles/bundle.Dockerfile'
     branches:
-      - 'rhoai-2.12'
+      - 'rhoai-*'
   workflow_dispatch:
     inputs:
       branch:
