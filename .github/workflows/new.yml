@@ -1,17 +1,65 @@
-name: Sync Repos
+# name: Sync Repos
 
+# on:
+#   push:
+#     branches:
+#       - '**'  # Trigger the workflow on pushes to the main branch
+#     paths:
+#       - '**'  # Trigger the workflow for changes to any file
+
+# permissions:
+#   contents: read
+#   packages: write
+#   id-token: write
+
+# jobs:
+#   sync:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout source repo
+#         uses: actions/checkout@v3
+#         with:
+#           repository: DevOps-automation-tasks/rhods-operator.git
+#           token: ${{ secrets.PAT_TOKEN }}
+#           path: source_repo
+
+#       - name: Checkout target repo
+#         uses: actions/checkout@v3
+#         with:
+#           repository: DevOps-automation-tasks/RHOAI-Build-Config.git
+#           token: ${{ secrets.PAT_TOKEN }}
+#           path: target_repo
+#           # Note: Ensure the target repo is checked out to a different path than the source repo
+
+#       - name: Sync changes
+#         run: |
+#           mkdir -p target_repo/bundle
+#           cp -r source_repo/bundle/* target_repo/bundle/
+#           cp source_repo/Dockerfiles/bundle.Dockerfile target_repo/bundle/Dockerfile
+#           echo "Files synced to target repo."
+
+#       - name: Commit and push changes to target repo
+#         run: |
+#           cd target_repo
+#           git config user.name "GitHub Actions"
+#           git config user.email "actions@github.com"
+#           git add .
+#           git commit -m "Sync changes from source repo" || echo "No changes to commit"
+#           git push origin main  # Push to the main branch of the target repo
+
+
+name: Sync Repos
 on:
   push:
-    branches:
-      - '**'  # Trigger the workflow on pushes to the main branch
     paths:
-      - '**'  # Trigger the workflow for changes to any file
-
+      - 'bundle/**'
+      - 'Dockerfiles/bundle.Dockerfile'
+    branches:
+      - '**'  # This will trigger on push to any branch
 permissions:
   contents: read
   packages: write
   id-token: write
-
 jobs:
   sync:
     runs-on: ubuntu-latest
@@ -19,30 +67,37 @@ jobs:
       - name: Checkout source repo
         uses: actions/checkout@v3
         with:
-          repository: DevOps-automation-tasks/rhods-operator.git
-          token: ${{ secrets.PAT_TOKEN }}
-          path: source_repo
-
+          repository: DevOps-automation-tasks/rhods-operator
+          token: ${{ secrets.AUTOMATION_SYNC }}
+          ref: ${{ github.ref }}  # Checkout the branch that triggered the push
+      - name: Display Files Changed
+        run: |
+          echo "Files changed in this push:"
+          git diff --name-only ${{ github.event.before }} ${{ github.event.after }}
       - name: Checkout target repo
         uses: actions/checkout@v3
         with:
-          repository: DevOps-automation-tasks/RHOAI-Build-Config.git
-          token: ${{ secrets.PAT_TOKEN }}
-          path: target_repo
-          # Note: Ensure the target repo is checked out to a different path than the source repo
-
-      - name: Sync changes
+          repository: DevOps-automation-tasks/RHOAI-Build-Config
+          token: ${{ secrets.AUTOMATION_SYNC }}
+          path: rbc_repo
+          ref: ${{ github.ref }}  # Checkout the branch that triggered the push
+      - name: Sync bundle to target repo
         run: |
-          mkdir -p target_repo/bundle
-          cp -r source_repo/bundle/* target_repo/bundle/
-          cp source_repo/Dockerfiles/bundle.Dockerfile target_repo/bundle/Dockerfile
+          mkdir -p rbc_repo/bundle/
+          cp -r bundle/* rbc_repo/bundle/
+          cp Dockerfiles/bundle.Dockerfile rbc_repo/bundle/Dockerfile
           echo "Files synced to target repo."
-
-      - name: Commit and push changes to target repo
+      - name: Update local branch and commit changes
         run: |
-          cd target_repo
+          cd rbc_repo
+          git fetch origin
+          git checkout ${{ github.ref_name }}  # Use the branch name
+          git pull origin ${{ github.ref_name }}  # Pull the latest changes
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           git add .
-          git commit -m "Sync changes from source repo" || echo "No changes to commit"
-          git push origin main  # Push to the main branch of the target repo
+          git commit -m "Sync bundle changes from source repo" || echo "No changes to commit"
+      - name: Push changes to target repo
+        run: |
+          cd rbc_repo
+          git push origin ${{ github.ref_name }}  # Push to the same branch
