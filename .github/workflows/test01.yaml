@@ -1,4 +1,4 @@
-name: Sync new Repo
+name: TEST 01
 
 on:
   push:
