@@ -1,26 +1,19 @@
-name: Sync Bundle to RBC Repo
+name: Sync new Repo
 
 on:
   push:
-    branches:
-      - '**'  # Trigger on pushes to any branch
     paths:
       - 'bundle/**'
       - 'Dockerfiles/bundle.Dockerfile'
-  pull_request:
     branches:
-      - '**'  # Trigger on PRs targeting any branch
-    paths:
-      - 'bundle/**'
-      - 'Dockerfiles/bundle.Dockerfile'
+      - '**'  # Adjust this to match the branch you want to trigger the workflow on
   workflow_dispatch:
     inputs:
       branch:
         description: 'Branch to sync'
         required: true
         type: string
-  schedule:
-    - cron: '0 0 * * *'  # Optional: Run on a schedule
+ 
 
 # permissions:
 #   contents: read
@@ -30,25 +23,17 @@ on:
 jobs:
   sync:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout rhods-operator repo
         uses: actions/checkout@v3
         with:
           repository: DevOps-automation-tasks/rhods-operator
           token: ${{ secrets.AUTOMATION_SYNC }}
-          ref: ${{ github.event.inputs.branch || github.ref }}
-          fetch-depth: 0  # Fetch all history
+          ref: ${{ github.ref }}  # Use github.ref to handle branch reference correctly
 
-      - name: Debug Event Data
+      - name: Display Files Changed
         run: |
-          echo "Event name: ${{ github.event_name }}"
-          echo "Branch ref: ${{ github.ref }}"
-          echo "Commit message: ${{ github.event.head_commit.message }}"
-          echo "Event before: ${{ github.event.before }}"
-          echo "Event after: ${{ github.event.after }}"
-          echo "Files changed:"
-          git fetch origin
+          echo "Files changed in this push:"
           git diff --name-only ${{ github.event.before }} ${{ github.event.after }}
 
       - name: Checkout RHOAI-Build-Config repo
@@ -57,8 +42,7 @@ jobs:
           repository: DevOps-automation-tasks/RHOAI-Build-Config
           token: ${{ secrets.AUTOMATION_SYNC }}
           path: rbc_repo
-          ref: ${{ github.event.inputs.branch || github.ref }}
-          fetch-depth: 0  # Fetch all history
+          ref: ${{ github.ref }}  # Use github.ref to handle branch reference correctly
 
       - name: Sync bundle to RBC repo
         run: |
@@ -71,8 +55,8 @@ jobs:
         run: |
           cd rbc_repo
           git fetch origin
-          git checkout ${{ github.event.inputs.branch || github.ref }}
-          git pull origin ${{ github.event.inputs.branch || github.ref }}
+          git checkout ${{ github.ref_name }}  # Use github.ref_name for the branch name
+          git pull origin ${{ github.ref_name }}  # Use github.ref_name for the branch name
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           git add .
@@ -81,4 +65,4 @@ jobs:
       - name: Push changes to RBC repo
         run: |
           cd rbc_repo
-          git push origin ${{ github.event.inputs.branch || github.ref }}
+          git push origin ${{ github.ref_name }}  # Use github.ref_name for the branch name
