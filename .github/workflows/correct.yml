@@ -311,7 +311,6 @@
 #           git commit -m "Sync changes from source repo" || echo "No changes to commit"
 #           git push origin ${{ github.ref_name }}  # Push to the same branch in the target repo
 
-
 name: Sync Bundle from Operator Repo to RBC Repo
 
 on:
@@ -350,9 +349,12 @@ jobs:
       - name: Remove unnecessary fields from CSV
         run: |
           sed -i '/olm.skipRange/d' source_repo/bundle/manifests/*.clusterserviceversion.yaml
-          sed -i '/channels/d' source_repo/bundle/manifests/*.clusterserviceversion.yaml
-          sed -i '/defaultChannel/d' source_repo/bundle/manifests/*.clusterserviceversion.yaml
           sed -i '/replaces/d' source_repo/bundle/manifests/*.clusterserviceversion.yaml
+
+      - name: Remove channels and defaultChannel from annotations.yaml
+        run: |
+          sed -i '/channels:/d' source_repo/bundle/metadata/annotations.yaml
+          sed -i '/defaultChannel:/d' source_repo/bundle/metadata/annotations.yaml
 
       - name: Retain current image digests in the RBC repo
         run: |
@@ -405,3 +407,4 @@ jobs:
           git add .
           git commit -m "Sync changes from source repo" || echo "No changes to commit"
           git push origin ${{ github.ref_name }}  # Push to the same branch in the target repo
+
