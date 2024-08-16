@@ -50,77 +50,61 @@
 #           git push origin ${{ github.ref_name }}  # Push to the same branch in the target repo
 
 
-name: Sync Repos
+name: Sync Bundles
 
 on:
   push:
-    branches:
-      - 'rhoai-*'
     paths:
-      - 'bundle/**'
+      - 'source_repo/bundle/**'
       - 'Dockerfiles/bundle.Dockerfile'
-
-permissions:
-  contents: read
-  packages: write
-  id-token: write
 
 jobs:
   sync:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout source repo
+      - name: Checkout Source Repository
         uses: actions/checkout@v3
         with:
-          repository: DevOps-automation-tasks/rhods-operator.git
-          token: ${{ secrets.PAT_TOKEN }}
+          repository: your-org/source-repo
           path: source_repo
-          ref: ${{ github.ref_name }}
 
-      - name: Checkout target repo
+      - name: Checkout Target Repository
         uses: actions/checkout@v3
         with:
-          repository: DevOps-automation-tasks/RHOAI-Build-Config.git
-          token: ${{ secrets.PAT_TOKEN }}
+          repository: your-org/target-repo
           path: target_repo
-          ref: ${{ github.ref_name }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: main
 
-      - name: Debug List files in source repo
-        run: |
-          echo "Source repo bundle files:"
-          find source_repo/bundle -type f -name "*.yaml"
-          echo "Directory structure of source repo bundle:"
-          ls -R source_repo/bundle
-
-      - name: Debug List files in target repo
-        run: |
-          echo "Target repo bundle files:"
-          find target_repo/bundle -type f -name "*.yaml"
-          echo "Directory structure of target repo bundle:"
-          ls -R target_repo/bundle
-
-      - name: Sync changes
+      - name: Sync Changes
         run: |
           # Navigate to the source bundle directory
           cd source_repo/bundle || exit
+
           # Create target directories if they don't exist
           mkdir -p ../target_repo/bundle
 
+          # Debugging: List the files in the source bundle directory
+          echo "Source repo bundle files:"
+          find . -type f
+
           # Loop over each file in the source repo
-          for file in $(find . -type f -name "*.yaml"); do
-            # Remove leading './' from file path for consistent target path construction
+          for file in $(find . -type f); do
+            # Remove leading './' from file path
             relative_path=${file#./}
             target_file="../target_repo/bundle/${relative_path}"
-            
+
+            # Debugging: Output file paths
             echo "Checking file: $file"
             echo "Target file: $target_file"
 
             # Create target directories if they don't exist
             mkdir -p "$(dirname "$target_file")"
-            
+
             # Check if the file exists in the target repo
             if [ -f "$target_file" ]; then
-              # If the file exists, copy the updated file to the target repo
+              echo "File exists, copying: $file to $target_file"
               cp "$file" "$target_file"
               echo "Updated $file in target repo."
             else
@@ -129,6 +113,33 @@ jobs:
           done
 
           # Copy the Dockerfile
-          cp ../Dockerfiles/bundle.Dockerfile ../target_repo/bundle/Dockerfile
-          echo "Dockerfile updated in target repo."
+          dockerfile_source="../Dockerfiles/bundle.Dockerfile"
+          dockerfile_target="../target_repo/bundle/Dockerfile"
+          
+          if [ -f "$dockerfile_source" ]; then
+            cp "$dockerfile_source" "$dockerfile_target"
+            echo "Dockerfile updated in target repo."
+          else
+            echo "Dockerfile source not found, skipping."
+          fi
+
+      - name: Commit and Push Changes
+        run: |
+          # Navigate to the target repository directory
+          cd target_repo || exit
+
+          # Configure Git user
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+
+          # Check for changes and push if any
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "Changes detected, committing and pushing."
+            git add .
+            git commit -m "Sync bundle updates from source repository"
+            git push origin main
+          else
+            echo "No changes detected, nothing to commit."
+          fi
+
 
