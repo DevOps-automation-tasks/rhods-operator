@@ -50,6 +50,7 @@
 #           git push origin ${{ github.ref_name }}  # Push to the same branch in the target repo
 
 
+
 name: Sync Repos
 
 on:
@@ -118,6 +119,9 @@ jobs:
             # Create target directories if they don't exist
             mkdir -p "$(dirname "$target_file")"
             
+            # Update modification time before copying
+            touch "$file"
+            
             # Copy the updated file to the target repo
             cp "$file" "$target_file"
             echo "Updated $file in target repo."
@@ -142,7 +146,7 @@ jobs:
           git status
           ls -R
           
-      - name: Commit and Push Changes
+      - name: Force Git Add and Commit
         run: |
           # Navigate to the target repository directory
           cd target_repo || exit
@@ -150,9 +154,9 @@ jobs:
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           
-          # Check for changes and stage them
-          git add .
-          echo "Git status after adding files:"
+          # Force add changes
+          git add --force .
+          echo "Git status after forcing add:"
           git status
 
           # Commit and push if there are changes
@@ -163,5 +167,4 @@ jobs:
             git commit -m "Sync bundle updates from source repository"
             git push origin ${{ github.ref_name }}
           fi
-
 
