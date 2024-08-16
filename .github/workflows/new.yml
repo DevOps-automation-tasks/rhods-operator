@@ -47,9 +47,8 @@
 #           git commit -m "Sync changes from source repo" || echo "No changes to commit"
 #           git push origin main  # Push to the main branch of the target repo
 
-02
 
-name: Sync Repos
+name: Sync Repos2
 
 on:
   push:
