@@ -49,7 +49,6 @@
 #           git commit -m "Sync changes from source repo" || echo "No changes to commit"
 #           git push origin ${{ github.ref_name }}  # Push to the same branch in the target repo
 
-
 name: Sync Repos
 
 on:
@@ -84,20 +83,6 @@ jobs:
           token: ${{ secrets.PAT_TOKEN }}
           path: target_repo
           ref: ${{ github.ref_name }}
-
-      - name: Debug List files in source repo
-        run: |
-          echo "Source repo bundle files:"
-          find source_repo/bundle -type f -name "*.yaml"
-          echo "Directory structure of source repo bundle:"
-          ls -R source_repo/bundle
-
-      - name: Debug List files in target repo
-        run: |
-          echo "Target repo bundle files:"
-          find target_repo/bundle -type f -name "*.yaml"
-          echo "Directory structure of target repo bundle:"
-          ls -R target_repo/bundle
 
       - name: Sync changes
         run: |
@@ -158,4 +143,6 @@ jobs:
             git push origin ${{ github.ref_name }}
           fi
         shell: /usr/bin/bash -e {0}
+
+
 
