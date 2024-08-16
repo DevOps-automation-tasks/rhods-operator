@@ -1,4 +1,4 @@
-name: Sync Bundle
+name: Sync Bundle test 01
 
 on:
   push:
