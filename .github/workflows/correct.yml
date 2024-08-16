@@ -49,6 +49,7 @@
 #           git commit -m "Sync changes from source repo" || echo "No changes to commit"
 #           git push origin ${{ github.ref_name }}  # Push to the same branch in the target repo
 
+
 name: Sync Repos
 
 on:
@@ -84,27 +85,32 @@ jobs:
           path: target_repo
           ref: ${{ github.ref_name }}
 
+      - name: List files in source repo
+        run: |
+          echo "Source repo bundle files:"
+          find source_repo/bundle -type f -name "*.yaml"
+          echo "Directory structure of source repo bundle:"
+          ls -R source_repo/bundle
+
+      - name: List files in target repo
+        run: |
+          echo "Target repo bundle files:"
+          find target_repo/bundle -type f -name "*.yaml"
+          echo "Directory structure of target repo bundle:"
+          ls -R target_repo/bundle
+
       - name: Sync changes
         run: |
           # Navigate to the source bundle directory
           cd source_repo/bundle || exit
-
           # Create target directories if they don't exist
           mkdir -p ../target_repo/bundle
-
           # Loop over each file in the source repo
           for file in $(find . -type f -name "*.yaml"); do
-            # Define the target file path
-            target_file="../target_repo/bundle/${file#./}"
-
-            # Print the paths being checked
+            target_file="../target_repo/bundle${file#./}"
             echo "Checking file: $file"
             echo "Target file: $target_file"
-
-            # Create target directories if they don't exist
-            mkdir -p "$(dirname "$target_file")"
-
-            # Check if the corresponding file exists in the target repo
+            # Check if the file exists in the target repo
             if [ -f "$target_file" ]; then
               # If the file exists, copy the updated file to the target repo
               cp "$file" "$target_file"
@@ -115,34 +121,8 @@ jobs:
           done
 
           # Copy the Dockerfile
-          dockerfile_source="../Dockerfiles/bundle.Dockerfile"
-          dockerfile_target="../target_repo/bundle/Dockerfile"
-
-          if [ -f "$dockerfile_source" ]; then
-            cp "$dockerfile_source" "$dockerfile_target"
-            echo "Dockerfile updated in target repo."
-          else
-            echo "Dockerfile does not exist, skipping."
-          fi
-        shell: /usr/bin/bash -e {0}
-
-      - name: Commit and push changes to target repo
-        run: |
-          cd target_repo || exit
-
-          # Configure git for committing
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
-
-          # Check for changes and commit
-          if git diff --quiet; then
-            echo "No changes to commit."
-          else
-            git add .
-            git commit -m "Sync changes from source repo" || echo "No changes to commit"
-            git push origin ${{ github.ref_name }}
-          fi
-        shell: /usr/bin/bash -e {0}
+          cp ../Dockerfiles/bundle.Dockerfile ../target_repo/bundle/Dockerfile
+          echo "Dockerfile updated in target repo."
 
 
 
