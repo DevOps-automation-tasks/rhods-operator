@@ -51,15 +51,133 @@
 
 
 
-name: Sync Repos
+# name: Sync Repos
+
+# on:
+#   push:
+#     branches:
+#       - 'rhoai-*'
+#     paths:
+#       - 'bundle/**'
+#       - 'Dockerfiles/bundle.Dockerfile'
+
+# permissions:
+#   contents: read
+#   packages: write
+#   id-token: write
+
+# jobs:
+#   sync:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout source repo
+#         uses: actions/checkout@v3
+#         with:
+#           repository: DevOps-automation-tasks/rhods-operator
+#           token: ${{ secrets.PAT_TOKEN }}
+#           path: source_repo
+#           ref: ${{ github.ref_name }}
+
+#       - name: Checkout target repo
+#         uses: actions/checkout@v3
+#         with:
+#           repository: DevOps-automation-tasks/RHOAI-Build-Config
+#           token: ${{ secrets.PAT_TOKEN }}
+#           path: target_repo
+#           ref: ${{ github.ref_name }}
+
+#       - name: Debug List files in source repo
+#         run: |
+#           echo "Source repo bundle files:"
+#           find source_repo/bundle -type f -name "*.yaml"
+#           echo "Directory structure of source repo bundle:"
+#           ls -R source_repo/bundle
+
+#       - name: Debug List files in target repo
+#         run: |
+#           echo "Target repo bundle files:"
+#           find target_repo/bundle -type f -name "*.yaml"
+#           echo "Directory structure of target repo bundle:"
+#           ls -R target_repo/bundle
+
+#       - name: Sync changes
+#         run: |
+#           # Navigate to the source bundle directory
+#           cd source_repo/bundle || exit
+#           # Create target directories if they don't exist
+#           mkdir -p ../target_repo/bundle
+          
+#           # Loop over each file in the source repo
+#           for file in $(find . -type f -name "*.yaml"); do
+#             # Remove leading './' from file path for consistent target path construction
+#             relative_path=${file#./}
+#             target_file="../target_repo/bundle/${relative_path}"
+            
+#             echo "Checking file: $file"
+#             echo "Target file: $target_file"
+            
+#             # Create target directories if they don't exist
+#             mkdir -p "$(dirname "$target_file")"
+            
+#             # Update modification time before copying
+#             touch "$file"
+            
+#             # Copy the updated file to the target repo
+#             cp "$file" "$target_file"
+#             echo "Updated $file in target repo."
+#           done
+          
+#           # Copy the Dockerfile
+#           dockerfile_source="../Dockerfiles/bundle.Dockerfile"
+#           dockerfile_target="../target_repo/bundle/Dockerfile"
+#           if [ -f "$dockerfile_source" ]; then
+#             cp "$dockerfile_source" "$dockerfile_target"
+#             echo "Dockerfile updated in target repo."
+#           else
+#             echo "Dockerfile source not found, skipping."
+#           fi
+
+#       - name: Debug Git status
+#         run: |
+#           # Navigate to the target repository directory
+#           cd target_repo || exit
+#           # List files and status before committing
+#           echo "Files in target repo before commit:"
+#           git status
+#           ls -R
+          
+#       - name: Force Git Add and Commit
+#         run: |
+#           # Navigate to the target repository directory
+#           cd target_repo || exit
+#           # Configure Git user
+#           git config user.name "GitHub Actions"
+#           git config user.email "actions@github.com"
+          
+#           # Force add changes
+#           git add --force .
+#           echo "Git status after forcing add:"
+#           git status
+
+#           # Commit and push if there are changes
+#           if git diff-index --quiet HEAD; then
+#             echo "No changes detected, nothing to commit."
+#           else
+#             echo "Changes detected, committing and pushing."
+#             git commit -m "Sync bundle updates from source repository"
+#             git push origin ${{ github.ref_name }}
+#           fi
+
+
+name: Sync Repos2
 
 on:
   push:
     branches:
-      - 'rhoai-*'
+      - 'rhoai-*'  # Trigger the workflow on pushes to any branch
     paths:
-      - 'bundle/**'
-      - 'Dockerfiles/bundle.Dockerfile'
+      - 'bundle/**'  # Trigger the workflow for changes to any file in the bundle directory
+      - 'Dockerfiles/bundle.Dockerfile'  # Trigger the workflow for changes to the Dockerfile
 
 permissions:
   contents: read
@@ -73,98 +191,42 @@ jobs:
       - name: Checkout source repo
         uses: actions/checkout@v3
         with:
-          repository: DevOps-automation-tasks/rhods-operator
+          repository: DevOps-automation-tasks/rhods-operator.git
           token: ${{ secrets.PAT_TOKEN }}
           path: source_repo
-          ref: ${{ github.ref_name }}
+          ref: ${{ github.ref_name }}  # Explicitly specify the branch being built
 
       - name: Checkout target repo
         uses: actions/checkout@v3
         with:
-          repository: DevOps-automation-tasks/RHOAI-Build-Config
+          repository: DevOps-automation-tasks/RHOAI-Build-Config.git
           token: ${{ secrets.PAT_TOKEN }}
           path: target_repo
-          ref: ${{ github.ref_name }}
+          ref: ${{ github.ref_name }}  # Explicitly specify the branch being built
 
-      - name: Debug List files in source repo
+      - name: Compare and Sync Changes
         run: |
-          echo "Source repo bundle files:"
-          find source_repo/bundle -type f -name "*.yaml"
-          echo "Directory structure of source repo bundle:"
-          ls -R source_repo/bundle
-
-      - name: Debug List files in target repo
-        run: |
-          echo "Target repo bundle files:"
-          find target_repo/bundle -type f -name "*.yaml"
-          echo "Directory structure of target repo bundle:"
-          ls -R target_repo/bundle
-
-      - name: Sync changes
-        run: |
-          # Navigate to the source bundle directory
-          cd source_repo/bundle || exit
-          # Create target directories if they don't exist
-          mkdir -p ../target_repo/bundle
-          
-          # Loop over each file in the source repo
-          for file in $(find . -type f -name "*.yaml"); do
-            # Remove leading './' from file path for consistent target path construction
-            relative_path=${file#./}
-            target_file="../target_repo/bundle/${relative_path}"
-            
-            echo "Checking file: $file"
-            echo "Target file: $target_file"
-            
-            # Create target directories if they don't exist
-            mkdir -p "$(dirname "$target_file")"
-            
-            # Update modification time before copying
-            touch "$file"
-            
-            # Copy the updated file to the target repo
-            cp "$file" "$target_file"
-            echo "Updated $file in target repo."
+          # Compare and copy only if different
+          for file in $(find source_repo/bundle -type f); do
+            target_file="target_repo/bundle/$(basename $file)"
+            if ! diff -q "$file" "$target_file" > /dev/null 2>&1; then
+              echo "Updating $target_file"
+              cp "$file" "$target_file"
+            fi
           done
           
-          # Copy the Dockerfile
-          dockerfile_source="../Dockerfiles/bundle.Dockerfile"
-          dockerfile_target="../target_repo/bundle/Dockerfile"
-          if [ -f "$dockerfile_source" ]; then
-            cp "$dockerfile_source" "$dockerfile_target"
-            echo "Dockerfile updated in target repo."
-          else
-            echo "Dockerfile source not found, skipping."
+          # Check and copy Dockerfile if different
+          if ! diff -q source_repo/Dockerfiles/bundle.Dockerfile target_repo/bundle/Dockerfile > /dev/null 2>&1; then
+            echo "Updating Dockerfile"
+            cp source_repo/Dockerfiles/bundle.Dockerfile target_repo/bundle/Dockerfile
           fi
 
-      - name: Debug Git status
+      - name: Commit and Push Changes to Target Repo
         run: |
-          # Navigate to the target repository directory
-          cd target_repo || exit
-          # List files and status before committing
-          echo "Files in target repo before commit:"
-          git status
-          ls -R
-          
-      - name: Force Git Add and Commit
-        run: |
-          # Navigate to the target repository directory
-          cd target_repo || exit
-          # Configure Git user
+          cd target_repo
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          
-          # Force add changes
-          git add --force .
-          echo "Git status after forcing add:"
-          git status
-
-          # Commit and push if there are changes
-          if git diff-index --quiet HEAD; then
-            echo "No changes detected, nothing to commit."
-          else
-            echo "Changes detected, committing and pushing."
-            git commit -m "Sync bundle updates from source repository"
-            git push origin ${{ github.ref_name }}
-          fi
+          git add .
+          git commit -m "Sync changes from source repo" || echo "No changes to commit"
+          git push origin ${{ github.ref_name }}  # Push to the same branch in the target repo
 
