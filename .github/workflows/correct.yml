@@ -56,10 +56,10 @@ name: Sync Repos
 on:
   push:
     branches:
-      - 'rhoai-*'  # Trigger the workflow on pushes to any branch
+      - 'rhoai-*'
     paths:
-      - 'bundle/**'  # Adjust the path to match where the bundle files are located
-      - 'Dockerfiles/bundle.Dockerfile'  # Trigger the workflow for changes to any file
+      - 'bundle/**'
+      - 'Dockerfiles/bundle.Dockerfile'
 
 permissions:
   contents: read
@@ -76,7 +76,7 @@ jobs:
           repository: DevOps-automation-tasks/rhods-operator.git
           token: ${{ secrets.PAT_TOKEN }}
           path: source_repo
-          ref: ${{ github.ref_name }}  # Explicitly specify the branch being built
+          ref: ${{ github.ref_name }}
 
       - name: Checkout target repo
         uses: actions/checkout@v3
@@ -84,14 +84,28 @@ jobs:
           repository: DevOps-automation-tasks/RHOAI-Build-Config.git
           token: ${{ secrets.PAT_TOKEN }}
           path: target_repo
-          ref: ${{ github.ref_name }}  # Explicitly specify the branch being built
+          ref: ${{ github.ref_name }}
+
+      - name: Debug: List files in source repo
+        run: |
+          echo "Source repo bundle files:"
+          find source_repo/bundle -type f -name "*.yaml"
+          echo "Directory structure of source repo bundle:"
+          ls -R source_repo/bundle
+
+      - name: Debug: List files in target repo
+        run: |
+          echo "Target repo bundle files:"
+          find target_repo/bundle -type f -name "*.yaml"
+          echo "Directory structure of target repo bundle:"
+          ls -R target_repo/bundle
 
       - name: Sync changes
         run: |
           # Navigate to the source bundle directory
           cd source_repo/bundle || exit
 
-          # Create target directory if it doesn't exist
+          # Create target directories if they don't exist
           mkdir -p ../target_repo/bundle
 
           # Loop over each file in the source repo
@@ -103,6 +117,9 @@ jobs:
             echo "Checking file: $file"
             echo "Target file: $target_file"
 
+            # Create target directories if they don't exist
+            mkdir -p "$(dirname "$target_file")"
+
             # Check if the corresponding file exists in the target repo
             if [ -f "$target_file" ]; then
               # If the file exists, copy the updated file to the target repo
@@ -113,7 +130,7 @@ jobs:
             fi
           done
 
-          # Copy the Dockerfile (assumes Dockerfile is always present and should be updated)
+          # Copy the Dockerfile
           dockerfile_source="../Dockerfiles/bundle.Dockerfile"
           dockerfile_target="../target_repo/bundle/Dockerfile"
 
@@ -139,6 +156,6 @@ jobs:
           else
             git add .
             git commit -m "Sync changes from source repo" || echo "No changes to commit"
-            git push origin ${{ github.ref_name }}  # Push to the same branch in the target repo
+            git push origin ${{ github.ref_name }}
           fi
         shell: /usr/bin/bash -e {0}
