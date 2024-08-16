@@ -13,6 +13,7 @@ spec:
     plural: datascienceclusters
     shortNames:
     - dsc
+    #retesst
     singular: datasciencecluster
   scope: Cluster
   versions:
