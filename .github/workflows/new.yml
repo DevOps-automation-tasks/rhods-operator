@@ -72,6 +72,7 @@ jobs:
           repository: DevOps-automation-tasks/rhods-operator.git
           token: ${{ secrets.PAT_TOKEN }}
           path: source_repo
+          ref: ${{ github.ref_name }}  # Explicitly specify the branch being built
 
       - name: Checkout target repo
         uses: actions/checkout@v3
@@ -79,7 +80,7 @@ jobs:
           repository: DevOps-automation-tasks/RHOAI-Build-Config.git
           token: ${{ secrets.PAT_TOKEN }}
           path: target_repo
-          # Note: Ensure the target repo is checked out to a different path than the source repo
+          ref: ${{ github.ref_name }}  # Explicitly specify the branch being built
 
       - name: Sync changes
         run: |
@@ -95,7 +96,8 @@ jobs:
           git config user.email "actions@github.com"
           git add .
           git commit -m "Sync changes from source repo" || echo "No changes to commit"
-          git push origin HEAD  # Push to the same branch in the target repo
+          git push origin ${{ github.ref_name }}  # Push to the same branch in the target repo
+
 
 
 # name: Sync Repos
