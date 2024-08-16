@@ -1,3 +1,55 @@
+# name: Sync Repos2
+
+# on:
+#   push:
+#     branches:
+#       - 'rhoai-*'  # Trigger the workflow on pushes to any branch
+#     paths:
+#       - 'bundle/**'  # Adjust the path to match where the bundle files are located
+#       - 'Dockerfiles/bundle.Dockerfile'# Trigger the workflow for changes to any file
+
+# permissions:
+#   contents: read
+#   packages: write
+#   id-token: write
+
+# jobs:
+#   sync:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout source repo
+#         uses: actions/checkout@v3
+#         with:
+#           repository: DevOps-automation-tasks/rhods-operator.git
+#           token: ${{ secrets.PAT_TOKEN }}
+#           path: source_repo
+#           ref: ${{ github.ref_name }}  # Explicitly specify the branch being built
+
+#       - name: Checkout target repo
+#         uses: actions/checkout@v3
+#         with:
+#           repository: DevOps-automation-tasks/RHOAI-Build-Config.git
+#           token: ${{ secrets.PAT_TOKEN }}
+#           path: target_repo
+#           ref: ${{ github.ref_name }}  # Explicitly specify the branch being built
+
+#       - name: Sync changes
+#         run: |
+#           mkdir -p target_repo/bundle
+#           cp -r source_repo/bundle/* target_repo/bundle/
+#           cp source_repo/Dockerfiles/bundle.Dockerfile target_repo/bundle/Dockerfile
+#           echo "Files synced to target repo."
+          
+#       - name: Commit and push changes to target repo
+#         run: |
+#           cd target_repo
+#           git config user.name "GitHub Actions"
+#           git config user.email "actions@github.com"
+#           git add .
+#           git commit -m "Sync changes from source repo" || echo "No changes to commit"
+#           git push origin ${{ github.ref_name }}  # Push to the same branch in the target repo
+
+
 name: Sync Repos2
 
 on:
@@ -6,7 +58,7 @@ on:
       - 'rhoai-*'  # Trigger the workflow on pushes to any branch
     paths:
       - 'bundle/**'  # Adjust the path to match where the bundle files are located
-      - 'Dockerfiles/bundle.Dockerfile'# Trigger the workflow for changes to any file
+      - 'Dockerfiles/bundle.Dockerfile'  # Trigger the workflow for changes to any file
 
 permissions:
   contents: read
@@ -35,8 +87,9 @@ jobs:
 
       - name: Sync changes
         run: |
+          # Sync only .yaml files from source to target
           mkdir -p target_repo/bundle
-          cp -r source_repo/bundle/* target_repo/bundle/
+          find source_repo/bundle -type f -name "*.yaml" -exec cp {} target_repo/bundle/ \;
           cp source_repo/Dockerfiles/bundle.Dockerfile target_repo/bundle/Dockerfile
           echo "Files synced to target repo."
           
