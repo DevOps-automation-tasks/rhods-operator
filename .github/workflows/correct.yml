@@ -85,14 +85,14 @@ jobs:
           path: target_repo
           ref: ${{ github.ref_name }}
 
-      - name: List files in source repo
+      - name: Debug: List files in source repo
         run: |
           echo "Source repo bundle files:"
           find source_repo/bundle -type f -name "*.yaml"
           echo "Directory structure of source repo bundle:"
           ls -R source_repo/bundle
 
-      - name: List files in target repo
+      - name: Debug: List files in target repo
         run: |
           echo "Target repo bundle files:"
           find target_repo/bundle -type f -name "*.yaml"
@@ -105,11 +105,19 @@ jobs:
           cd source_repo/bundle || exit
           # Create target directories if they don't exist
           mkdir -p ../target_repo/bundle
+
           # Loop over each file in the source repo
           for file in $(find . -type f -name "*.yaml"); do
-            target_file="../target_repo/bundle${file#./}"
+            # Remove leading './' from file path for consistent target path construction
+            relative_path=${file#./}
+            target_file="../target_repo/bundle/${relative_path}"
+            
             echo "Checking file: $file"
             echo "Target file: $target_file"
+
+            # Create target directories if they don't exist
+            mkdir -p "$(dirname "$target_file")"
+            
             # Check if the file exists in the target repo
             if [ -f "$target_file" ]; then
               # If the file exists, copy the updated file to the target repo
@@ -123,6 +131,4 @@ jobs:
           # Copy the Dockerfile
           cp ../Dockerfiles/bundle.Dockerfile ../target_repo/bundle/Dockerfile
           echo "Dockerfile updated in target repo."
-
-
 
