@@ -1,4 +1,4 @@
-name: Sync new Repo
+name: current test 01
 
 on:
   push:
@@ -13,13 +13,12 @@ on:
         description: 'Branch to sync'
         required: true
         type: string
-  schedule:
-    - cron: '0 0 * * *'  # Adjust the schedule as needed
+ 
 
-permissions:
-  contents: read
-  packages: write
-  id-token: write
+# permissions:
+#   contents: read
+#   packages: write
+#   id-token: write
 
 jobs:
   sync:
