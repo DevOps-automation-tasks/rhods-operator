@@ -143,10 +143,11 @@ jobs:
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
 
-          # Check for changes and push if any
+          # Check for changes and stage them
           if [ -n "$(git status --porcelain)" ]; then
             echo "Changes detected, committing and pushing."
             git add .
+            git status
             git commit -m "Sync bundle updates from source repository"
             git push origin ${{ github.ref_name }}
           else
