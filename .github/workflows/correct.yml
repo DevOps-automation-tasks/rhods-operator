@@ -105,7 +105,7 @@ jobs:
           cd source_repo/bundle || exit
           # Create target directories if they don't exist
           mkdir -p ../target_repo/bundle
-
+          
           # Loop over each file in the source repo
           for file in $(find . -type f -name "*.yaml"); do
             # Remove leading './' from file path for consistent target path construction
@@ -114,7 +114,7 @@ jobs:
             
             echo "Checking file: $file"
             echo "Target file: $target_file"
-
+            
             # Create target directories if they don't exist
             mkdir -p "$(dirname "$target_file")"
             
@@ -122,11 +122,10 @@ jobs:
             cp "$file" "$target_file"
             echo "Updated $file in target repo."
           done
-
+          
           # Copy the Dockerfile
           dockerfile_source="../Dockerfiles/bundle.Dockerfile"
           dockerfile_target="../target_repo/bundle/Dockerfile"
-
           if [ -f "$dockerfile_source" ]; then
             cp "$dockerfile_source" "$dockerfile_target"
             echo "Dockerfile updated in target repo."
@@ -134,23 +133,35 @@ jobs:
             echo "Dockerfile source not found, skipping."
           fi
 
+      - name: Debug Git status
+        run: |
+          # Navigate to the target repository directory
+          cd target_repo || exit
+          # List files and status before committing
+          echo "Files in target repo before commit:"
+          git status
+          ls -R
+          
       - name: Commit and Push Changes
         run: |
           # Navigate to the target repository directory
           cd target_repo || exit
-
           # Configure Git user
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-
+          
           # Check for changes and stage them
-          if [ -n "$(git status --porcelain)" ]; then
+          git add .
+          echo "Git status after adding files:"
+          git status
+
+          # Commit and push if there are changes
+          if git diff-index --quiet HEAD; then
+            echo "No changes detected, nothing to commit."
+          else
             echo "Changes detected, committing and pushing."
-            git add .
-            git status
             git commit -m "Sync bundle updates from source repository"
             git push origin ${{ github.ref_name }}
-          else
-            echo "No changes detected, nothing to commit."
           fi
+
 
