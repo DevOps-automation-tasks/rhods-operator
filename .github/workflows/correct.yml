@@ -49,15 +49,17 @@
 #           git commit -m "Sync changes from source repo" || echo "No changes to commit"
 #           git push origin ${{ github.ref_name }}  # Push to the same branch in the target repo
 
-name: Sync Repos2
+
+
+name: Sync Repos
 
 on:
   push:
     branches:
-      - 'rhoai-*'  # Trigger the workflow on pushes to specific branches
+      - 'rhoai-*'  # Trigger the workflow on pushes to any branch
     paths:
-      - 'bundle/**'  # Trigger the workflow for changes to any bundle files
-      - 'Dockerfiles/bundle.Dockerfile'  # Trigger the workflow for changes to the bundle Dockerfile
+      - 'bundle/**'  # Adjust the path to match where the bundle files are located
+      - 'Dockerfiles/bundle.Dockerfile'  # Trigger the workflow for changes to any file
 
 permissions:
   contents: read
@@ -84,34 +86,59 @@ jobs:
           path: target_repo
           ref: ${{ github.ref_name }}  # Explicitly specify the branch being built
 
-      - name: Sync existing files only
+      - name: Sync changes
         run: |
           # Navigate to the source bundle directory
-          cd source_repo/bundle
+          cd source_repo/bundle || exit
+
+          # Create target directory if it doesn't exist
+          mkdir -p ../target_repo/bundle
 
           # Loop over each file in the source repo
           for file in $(find . -type f -name "*.yaml"); do
+            # Define the target file path
+            target_file="../target_repo/bundle/${file#./}"
+
+            # Print the paths being checked
+            echo "Checking file: $file"
+            echo "Target file: $target_file"
+
             # Check if the corresponding file exists in the target repo
-            if [ -f "../target_repo/bundle/$file" ]; then
+            if [ -f "$target_file" ]; then
               # If the file exists, copy the updated file to the target repo
-              cp "$file" "../target_repo/bundle/$file"
+              cp "$file" "$target_file"
               echo "Updated $file in target repo."
             else
               echo "File $file does not exist in the target repo, skipping."
             fi
           done
-          
+
           # Copy the Dockerfile (assumes Dockerfile is always present and should be updated)
-          cp ../Dockerfiles/bundle.Dockerfile ../target_repo/bundle/Dockerfile
-          echo "Dockerfile updated in target repo."
+          dockerfile_source="../Dockerfiles/bundle.Dockerfile"
+          dockerfile_target="../target_repo/bundle/Dockerfile"
+
+          if [ -f "$dockerfile_source" ]; then
+            cp "$dockerfile_source" "$dockerfile_target"
+            echo "Dockerfile updated in target repo."
+          else
+            echo "Dockerfile does not exist, skipping."
+          fi
+        shell: /usr/bin/bash -e {0}
 
       - name: Commit and push changes to target repo
         run: |
-          cd ../target_repo
+          cd target_repo || exit
+
+          # Configure git for committing
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git add .
-          git commit -m "Sync changes from source repo" || echo "No changes to commit"
-          git push origin ${{ github.ref_name }}  # Push to the same branch in the target repo
 
-
+          # Check for changes and commit
+          if git diff --quiet; then
+            echo "No changes to commit."
+          else
+            git add .
+            git commit -m "Sync changes from source repo" || echo "No changes to commit"
+            git push origin ${{ github.ref_name }}  # Push to the same branch in the target repo
+          fi
+        shell: /usr/bin/bash -e {0}
