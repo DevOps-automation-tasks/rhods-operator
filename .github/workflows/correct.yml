@@ -3,9 +3,10 @@ name: Sync Repos2
 on:
   push:
     branches:
-      - '*'  # Trigger the workflow on pushes to any branch
+      - 'rhoai-*'  # Trigger the workflow on pushes to any branch
     paths:
-      - '**'  # Trigger the workflow for changes to any file
+      - 'bundle/**'  # Adjust the path to match where the bundle files are located
+      - 'Dockerfiles/bundle.Dockerfile'# Trigger the workflow for changes to any file
 
 permissions:
   contents: read
