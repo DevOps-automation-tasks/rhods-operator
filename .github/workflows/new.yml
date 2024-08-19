@@ -1,61 +1,12 @@
-# name: Sync Repos
-
-# on:
-#   push:
-#     branches:
-#       - '**'  # Trigger the workflow on pushes to the main branch
-#     paths:
-#       - '**'  # Trigger the workflow for changes to any file
-
-# permissions:
-#   contents: read
-#   packages: write
-#   id-token: write
-
-# jobs:
-#   sync:
-#     runs-on: ubuntu-latest
-#     steps:
-#       - name: Checkout source repo
-#         uses: actions/checkout@v3
-#         with:
-#           repository: DevOps-automation-tasks/rhods-operator.git
-#           token: ${{ secrets.PAT_TOKEN }}
-#           path: source_repo
-
-#       - name: Checkout target repo
-#         uses: actions/checkout@v3
-#         with:
-#           repository: DevOps-automation-tasks/RHOAI-Build-Config.git
-#           token: ${{ secrets.PAT_TOKEN }}
-#           path: target_repo
-#           # Note: Ensure the target repo is checked out to a different path than the source repo
-
-#       - name: Sync changes
-#         run: |
-#           mkdir -p target_repo/bundle
-#           cp -r source_repo/bundle/* target_repo/bundle/
-#           cp source_repo/Dockerfiles/bundle.Dockerfile target_repo/bundle/Dockerfile
-#           echo "Files synced to target repo."
-
-#       - name: Commit and push changes to target repo
-#         run: |
-#           cd target_repo
-#           git config user.name "GitHub Actions"
-#           git config user.email "actions@github.com"
-#           git add .
-#           git commit -m "Sync changes from source repo" || echo "No changes to commit"
-#           git push origin main  # Push to the main branch of the target repo
-
-
-name: Sync Repos2
+name: Sync Bundle for main
 
 on:
   push:
     branches:
-      - '*'  # Trigger the workflow on pushes to any branch
+      - 'rhoai-*'  # Trigger the workflow on pushes to any rhoai-* branch
     paths:
-      - '**'  # Trigger the workflow for changes to any file
+      - 'bundle/**'  # Trigger the workflow for changes to any file in the bundle directory
+      - 'Dockerfiles/bundle.Dockerfile'  # Trigger the workflow for changes to the Dockerfile
 
 permissions:
   contents: read
@@ -72,7 +23,7 @@ jobs:
           repository: DevOps-automation-tasks/rhods-operator.git
           token: ${{ secrets.PAT_TOKEN }}
           path: source_repo
-          ref: ${{ github.ref_name }}  # Explicitly specify the branch being built
+          ref: ${{ github.ref_name }}  # Use the same branch name as in the event
 
       - name: Checkout target repo
         uses: actions/checkout@v3
@@ -80,16 +31,62 @@ jobs:
           repository: DevOps-automation-tasks/RHOAI-Build-Config.git
           token: ${{ secrets.PAT_TOKEN }}
           path: target_repo
-          ref: ${{ github.ref_name }}  # Explicitly specify the branch being built
+          ref: ${{ github.ref_name }}  # Use the same branch name as in the event
 
-      - name: Sync changes
+      - name: Remove unnecessary fields from CSV
         run: |
-          mkdir -p target_repo/bundle
-          cp -r source_repo/bundle/* target_repo/bundle/
-          cp source_repo/Dockerfiles/bundle.Dockerfile target_repo/bundle/Dockerfile
-          echo "Files synced to target repo."
+          sed -i '/olm.skipRange/d' source_repo/bundle/manifests/*.clusterserviceversion.yaml
+          sed -i '/replaces/d' source_repo/bundle/manifests/*.clusterserviceversion.yaml
+
+      - name: Remove channels and defaultChannel from annotations.yaml
+        run: |
+          sed -i '/channels:/d' source_repo/bundle/metadata/annotations.yaml
+          sed -i '/defaultChannel:/d' source_repo/bundle/metadata/annotations.yaml
+
+      - name: Retain current image digests in the RBC repo
+        run: |
+          # Backup current image digests
+          cp target_repo/bundle/manifests/*.clusterserviceversion.yaml /tmp/rbc_csv.yaml
+          # Replace image digests in the source CSV with the ones from the target repo
+          for image in $(grep -oP 'image:\s*\K\S+' /tmp/rbc_csv.yaml); do
+            sed -i "s|image: .*|image: $image|g" source_repo/bundle/manifests/*.clusterserviceversion.yaml
+          done
+
+      - name: Compare and Sync Changes
+        run: |
+          # Function to compare and sync files
+          sync_files() {
+            local source_dir=$1
+            local target_dir=$2
+            for file in $(find $source_dir -type f); do
+              relative_path=$(realpath --relative-to="$source_dir" "$file")
+              target_file="$target_dir/$relative_path"
+              if [ -f "$target_file" ]; then
+                if ! diff -q "$file" "$target_file" > /dev/null 2>&1; then
+                  echo "Updating $target_file"
+                  cp "$file" "$target_file"
+                else
+                  echo "No changes in $target_file"
+                fi
+              else
+                echo "New file detected, copying $file to target repo"
+                mkdir -p "$(dirname "$target_file")"
+                cp "$file" "$target_file"
+              fi
+            done
+          }
+          # Sync files from source_repo/bundle to target_repo/bundle
+          sync_files "source_repo/bundle" "target_repo/bundle"
           
-      - name: Commit and push changes to target repo
+          # Sync Dockerfile
+          if ! diff -q source_repo/Dockerfiles/bundle.Dockerfile target_repo/bundle/Dockerfile > /dev/null 2>&1; then
+            echo "Updating Dockerfile"
+            cp source_repo/Dockerfiles/bundle.Dockerfile target_repo/bundle/Dockerfile
+          else
+            echo "No changes in Dockerfile"
+          fi
+
+      - name: Commit and Push Changes to Target Repo
         run: |
           cd target_repo
           git config user.name "GitHub Actions"
@@ -97,59 +94,3 @@ jobs:
           git add .
           git commit -m "Sync changes from source repo" || echo "No changes to commit"
           git push origin ${{ github.ref_name }}  # Push to the same branch in the target repo
-
-
-
-# name: Sync Repos
-# on:
-#   push:
-#     paths:
-#       - 'bundle/**'
-#       - 'Dockerfiles/bundle.Dockerfile'
-#     branches:
-#       - '**'  # This will trigger on push to any branch
-# permissions:
-#   contents: read
-#   packages: write
-#   id-token: write
-# jobs:
-#   sync:
-#     runs-on: ubuntu-latest
-#     steps:
-#       - name: Checkout source repo
-#         uses: actions/checkout@v3
-#         with:
-#           repository: DevOps-automation-tasks/rhods-operator
-#           token: ${{ secrets.AUTOMATION_SYNC }}
-#           ref: ${{ github.ref }}  # Checkout the branch that triggered the push
-#       - name: Display Files Changed
-#         run: |
-#           echo "Files changed in this push:"
-#           git diff --name-only ${{ github.event.before }} ${{ github.event.after }}
-#       - name: Checkout target repo
-#         uses: actions/checkout@v3
-#         with:
-#           repository: DevOps-automation-tasks/RHOAI-Build-Config
-#           token: ${{ secrets.AUTOMATION_SYNC }}
-#           path: rbc_repo
-#           ref: ${{ github.ref }}  # Checkout the branch that triggered the push
-#       - name: Sync bundle to target repo
-#         run: |
-#           mkdir -p rbc_repo/bundle/
-#           cp -r bundle/* rbc_repo/bundle/
-#           cp Dockerfiles/bundle.Dockerfile rbc_repo/bundle/Dockerfile
-#           echo "Files synced to target repo."
-#       - name: Update local branch and commit changes
-#         run: |
-#           cd rbc_repo
-#           git fetch origin
-#           git checkout ${{ github.ref_name }}  # Use the branch name
-#           git pull origin ${{ github.ref_name }}  # Pull the latest changes
-#           git config user.name "GitHub Actions"
-#           git config user.email "actions@github.com"
-#           git add .
-#           git commit -m "Sync bundle changes from source repo" || echo "No changes to commit"
-#       - name: Push changes to target repo
-#         run: |
-#           cd rbc_repo
-#           git push origin ${{ github.ref_name }}  # Push to the same branch
