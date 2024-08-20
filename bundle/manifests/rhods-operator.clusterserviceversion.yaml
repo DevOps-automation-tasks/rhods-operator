@@ -1,6 +1,5 @@
 apiVersion: operators.coreos.com/v1alpha1
 #testsync ci
-####
 kind: ClusterServiceVersion
 metadata:
   annotations:
