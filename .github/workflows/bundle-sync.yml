@@ -152,6 +152,10 @@ jobs:
             sed -i "s|image: .*|image: $image|g" source_repo/bundle/manifests/*.clusterserviceversion.yaml
           done
 
+          # Update containerImage annotation
+          container_image=$(grep -oP 'containerImage:\s*\K\S+' /tmp/rbc_csv.yaml)
+          sed -i "s|containerImage: .*|containerImage: $container_image|g" source_repo/bundle/manifests/*.clusterserviceversion.yaml
+
       - name: Sync RELATED_IMAGE values
         run: |
           # Sync RELATED_IMAGE values from source CSV to target CSV
