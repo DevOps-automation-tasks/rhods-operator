@@ -165,6 +165,12 @@ jobs:
             sed -i "s|$key=.*|$key=$value|g" target_repo/bundle/manifests/*.clusterserviceversion.yaml
           done
 
+      - name: Verify RELATED_IMAGE Values
+        run: |
+          for related_image in $(grep -oP 'RELATED_IMAGE_\w+:\s*\K\S+' target_repo/bundle/manifests/*.clusterserviceversion.yaml); do
+            echo "Found RELATED_IMAGE: $related_image"
+          done
+
       - name: Compare and Sync Changes
         run: |
           # Function to compare and sync files
