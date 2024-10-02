@@ -149,8 +149,12 @@ jobs:
 
       - name: Remove labels from Dockerfile
         run: |
-          yq eval 'del(.LABELS."operators.operatorframework.io.bundle.channels.v1")' -i source_repo/Dockerfiles/bundle.Dockerfile
-          yq eval 'del(.LABELS."operators.operatorframework.io.bundle.channel.default.v1")' -i source_repo/Dockerfiles/bundle.Dockerfile
+          # Remove the LABEL operators.operatorframework.io.bundle.channels.v1
+          sed -i '/LABEL operators.operatorframework.io.bundle.channels.v1=/d' source_repo/Dockerfiles/bundle.Dockerfile
+          
+          # Remove the LABEL operators.operatorframework.io.bundle.channel.default.v1
+          sed -i '/LABEL operators.operatorframework.io.bundle.channel.default.v1=/d' source_repo/Dockerfiles/bundle.Dockerfile
+
 
       - name: Retain current image digests in the RBC repo
         run: |
