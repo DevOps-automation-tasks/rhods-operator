@@ -137,8 +137,15 @@ jobs:
           path: target_repo
           ref: ${{ github.ref_name }}  # Use the same branch name as in the event
 
+      - name: Retain RELATED_IMAGE and relatedImages sections from CSV
+        run: |
+          # Backup the relatedImages and RELATED_IMAGE_ sections
+          yq eval '.spec.relatedImages' source_repo/bundle/manifests/*.clusterserviceversion.yaml > /tmp/relatedImages_backup.yaml
+          grep 'RELATED_IMAGE_' source_repo/bundle/manifests/*.clusterserviceversion.yaml > /tmp/related_env_vars.yaml
+
       - name: Remove unnecessary fields from CSV
         run: |
+          # Remove unwanted fields
           yq eval 'del(.spec.skipRange)' -i source_repo/bundle/manifests/*.clusterserviceversion.yaml
           yq eval 'del(.spec.replaces)' -i source_repo/bundle/manifests/*.clusterserviceversion.yaml
 
@@ -152,19 +159,14 @@ jobs:
           sed -i '/LABEL operators.operatorframework.io.bundle.channels.v1=/d' source_repo/Dockerfiles/bundle.Dockerfile
           sed -i '/LABEL operators.operatorframework.io.bundle.channel.default.v1=/d' source_repo/Dockerfiles/bundle.Dockerfile
 
-      - name: Retain current image digests in the RBC repo
+      - name: Restore RELATED_IMAGE and relatedImages sections
         run: |
-          yq eval '.spec.relatedImages[] | select(.name == "rhods-operator")' target_repo/bundle/manifests/*.clusterserviceversion.yaml > /tmp/rbc_csv.yaml
-          for image in $(yq eval '.image' /tmp/rbc_csv.yaml); do
-            yq eval ".spec.relatedImages[] |= (.image = \"$image\")" -i source_repo/bundle/manifests/*.clusterserviceversion.yaml
-          done
-
-      - name: Retain RELATED_IMAGE and relatedImages sections
-        run: |
-          yq eval '.spec.relatedImages' source_repo/bundle/manifests/*.clusterserviceversion.yaml > /tmp/relatedImages_section.yaml
-          yq eval 'del(.spec.relatedImages)' -i source_repo/bundle/manifests/*.clusterserviceversion.yaml
-          yq eval-all 'select(fileIndex == 0) | .spec.relatedImages = load("/tmp/relatedImages_section.yaml")' source_repo/bundle/manifests/*.clusterserviceversion.yaml > /tmp/new_csv.yaml
+          # Restore the relatedImages and RELATED_IMAGE_ sections
+          yq eval-all 'select(fileIndex == 0) | .spec.relatedImages = load("/tmp/relatedImages_backup.yaml")' source_repo/bundle/manifests/*.clusterserviceversion.yaml > /tmp/new_csv.yaml
           mv /tmp/new_csv.yaml source_repo/bundle/manifests/*.clusterserviceversion.yaml
+          while read -r line; do
+            yq eval ".spec.env[] |= (.name |= \"$line\")" -i source_repo/bundle/manifests/*.clusterserviceversion.yaml
+          done < /tmp/related_env_vars.yaml
 
       - name: Verify RELATED_IMAGE Values
         run: |
@@ -194,7 +196,6 @@ jobs:
           }
           sync_files "source_repo/bundle" "target_repo/bundle"
 
-      # Sync Dockerfile
       - name: Sync Dockerfile
         run: |
           if ! diff -q source_repo/Dockerfiles/bundle.Dockerfile target_repo/bundle/Dockerfile > /dev/null 2>&1; then
@@ -212,4 +213,3 @@ jobs:
           git add .
           git commit -m "Sync changes from source repo" || echo "No changes to commit"
           git push origin ${{ github.ref_name }}  # Push to the same branch in the target repo
-
