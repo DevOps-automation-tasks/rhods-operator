@@ -188,15 +188,18 @@ jobs:
           yq eval -i ".spec.relatedImages = $related_images" "$source_csv_file"
 
           # Extract RELATED_IMAGE_* environment variables from the target CSV
-          related_image_envs=$(yq eval '.spec.install.spec.deployments[0].spec.template.spec.containers[].env[] | select(.name | startswith("RELATED_IMAGE_"))' "$csv_file")
+          related_image_envs=$(yq eval -o=json '.spec.install.spec.deployments[0].spec.template.spec.containers[].env[] | select(.name | startswith("RELATED_IMAGE_"))' "$csv_file")
 
-          # Check and restore the RELATED_IMAGE_* sections
-          for row in $(echo "$related_image_envs" | yq -r '.name'); do
-            value=$(echo "$related_image_envs" | yq -r --arg name "$row" '. | select(.name == $name).value')
-            # Only add if the key is not already in the source CSV
-            if ! yq eval "any(.spec.install.spec.deployments[0].spec.template.spec.containers[].env[]; .name == \"$row\")" "$source_csv_file"; then
-              echo "Restoring $row"
-              yq eval -i ".spec.install.spec.deployments[0].spec.template.spec.containers[].env += [{name: \"$row\", value: \"$value\"}]" "$source_csv_file"
+          # Loop through related_image_envs to restore them to the source CSV
+          for row in $(echo "$related_image_envs" | jq -c '.'); do
+            name=$(echo "$row" | jq -r '.name')
+            value=$(echo "$row" | jq -r '.value')
+
+            # Check if the environment variable already exists in the source CSV
+            if ! yq eval "any(.spec.install.spec.deployments[0].spec.template.spec.containers[].env[]; .name == \"$name\")" "$source_csv_file"; then
+              echo "Restoring $name"
+             # Append the environment variable to the source CSV
+             yq eval -i ".spec.install.spec.deployments[0].spec.template.spec.containers[].env += [{name: \"$name\", value: \"$value\"}]" "$source_csv_file"
             fi
           done
 
