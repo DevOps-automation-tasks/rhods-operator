@@ -162,23 +162,25 @@ jobs:
       - name: Restore RELATED_IMAGE and relatedImages sections
         run: |
           # Check if CSV file exists before restoring values
-          if ls source_repo/bundle/manifests/*.clusterserviceversion.yaml 1> /dev/null 2>&1; then
-          # Restore the relatedImages section
-          echo "Restoring relatedImages section."
-          yq eval 'select(fileIndex == 0) | .spec.relatedImages = load("source_repo/bundle/manifests/*.clusterserviceversion.yaml").spec.relatedImages' source_repo/bundle/manifests/*.clusterserviceversion.yaml > /tmp/new_csv.yaml
-          mv /tmp/new_csv.yaml source_repo/bundle/manifests/*.clusterserviceversion.yaml
+          csv_file="source_repo/bundle/manifests/rhods-operator.clusterserviceversion.yaml"
+    
+          if [ -f "$csv_file" ]; then
+            # Restore the relatedImages section
+            echo "Restoring relatedImages section."
+            yq eval 'select(fileIndex == 0) | .spec.relatedImages = load("source_repo/bundle/manifests/rhods-operator.clusterserviceversion.yaml").spec.relatedImages' "$csv_file" > /tmp/new_csv.yaml
+            mv /tmp/new_csv.yaml "$csv_file"
 
-          # Restore the RELATED_IMAGE environment variables
-          if [ -f /tmp/related_env_vars.yaml ]; then
-            echo "Restoring RELATED_IMAGE environment variables."
-            while read -r line; do
-              # Update the environment variables in the CSV based on the lines from the backup
-              yq eval ".spec.env[] |= (.name |= \"$line\")" -i source_repo/bundle/manifests/*.clusterserviceversion.yaml
+            # Restore the RELATED_IMAGE environment variables
+            if [ -f /tmp/related_env_vars.yaml ]; then
+              echo "Restoring RELATED_IMAGE environment variables."
+              while read -r line; do
+               # Update the environment variables in the CSV based on the lines from the backup
+               yq eval ".spec.env[] |= (.name |= \"$line\")" -i "$csv_file"
               done < /tmp/related_env_vars.yaml
             fi
           else
             echo "No CSV file found. Skipping restoration of relatedImages and RELATED_IMAGE environment variables."
-          fi                
+          fi          
 
       - name: Verify RELATED_IMAGE Values
         run: |
