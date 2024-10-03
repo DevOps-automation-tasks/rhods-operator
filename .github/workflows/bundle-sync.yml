@@ -137,15 +137,9 @@ jobs:
           path: target_repo
           ref: ${{ github.ref_name }}  # Use the same branch name as in the event
 
-      - name: Retain RELATED_IMAGE and relatedImages sections from CSV
-        run: |
-          # Backup the relatedImages and RELATED_IMAGE_ sections
-          yq eval '.spec.relatedImages' source_repo/bundle/manifests/*.clusterserviceversion.yaml > /tmp/relatedImages_backup.yaml
-          grep 'RELATED_IMAGE_' source_repo/bundle/manifests/*.clusterserviceversion.yaml > /tmp/related_env_vars.yaml
-
       - name: Remove unnecessary fields from CSV
         run: |
-          # Remove unwanted fields
+          # Remove unwanted fields from the source CSV
           yq eval 'del(.spec.skipRange)' -i source_repo/bundle/manifests/*.clusterserviceversion.yaml
           yq eval 'del(.spec.replaces)' -i source_repo/bundle/manifests/*.clusterserviceversion.yaml
 
@@ -153,38 +147,6 @@ jobs:
         run: |
           yq eval 'del(.annotations."operators.operatorframework.io.bundle.channels.v1")' -i source_repo/bundle/metadata/annotations.yaml
           yq eval 'del(.annotations."operators.operatorframework.io.bundle.channel.default.v1")' -i source_repo/bundle/metadata/annotations.yaml
-
-      - name: Remove labels from Dockerfile
-        run: |
-          sed -i '/LABEL operators.operatorframework.io.bundle.channels.v1=/d' source_repo/Dockerfiles/bundle.Dockerfile
-          sed -i '/LABEL operators.operatorframework.io.bundle.channel.default.v1=/d' source_repo/Dockerfiles/bundle.Dockerfile
-
-      - name: Restore RELATED_IMAGE and relatedImages sections
-        run: |
-          # Check if CSV file exists before restoring values
-          csv_file="source_repo/bundle/manifests/rhods-operator.clusterserviceversion.yaml"
-    
-          if [ -f "$csv_file" ]; then
-            # Restore the relatedImages section
-            echo "Restoring relatedImages section."
-            yq eval 'select(fileIndex == 0) | .spec.relatedImages = load("source_repo/bundle/manifests/rhods-operator.clusterserviceversion.yaml").spec.relatedImages' "$csv_file" > /tmp/new_csv.yaml
-            mv /tmp/new_csv.yaml "$csv_file"
-
-            # Restore the RELATED_IMAGE environment variables
-            if [ -f /tmp/related_env_vars.yaml ]; then
-              echo "Restoring RELATED_IMAGE environment variables."
-              while read -r line; do
-               # Update the environment variables in the CSV based on the lines from the backup
-               yq eval ".spec.env[] |= (.name |= \"$line\")" -i "$csv_file"
-              done < /tmp/related_env_vars.yaml
-            fi
-          else
-            echo "No CSV file found. Skipping restoration of relatedImages and RELATED_IMAGE environment variables."
-          fi          
-
-      - name: Verify RELATED_IMAGE Values
-        run: |
-          yq eval '.spec.relatedImages[] | .name + ": " + .image' source_repo/bundle/manifests/*.clusterserviceversion.yaml
 
       - name: Compare and Sync Changes
         run: |
@@ -208,7 +170,19 @@ jobs:
               fi
             done
           }
+          # Sync files from source_repo/bundle to target_repo/bundle
           sync_files "source_repo/bundle" "target_repo/bundle"
+
+      - name: Retain RELATED_IMAGE and relatedImages sections from target CSV
+        run: |
+          csv_file="target_repo/bundle/manifests/rhods-operator.clusterserviceversion.yaml"
+          if [ -f "$csv_file" ]; then
+            # Restore the RELATED_IMAGE and relatedImages sections from the target CSV
+            echo "Restoring RELATED_IMAGE and relatedImages sections."
+            cp "$csv_file" source_repo/bundle/manifests/rhods-operator.clusterserviceversion.yaml
+          else
+            echo "No target CSV file found. Skipping restoration of RELATED_IMAGE and relatedImages."
+          fi
 
       - name: Sync Dockerfile
         run: |
@@ -227,3 +201,4 @@ jobs:
           git add .
           git commit -m "Sync changes from source repo" || echo "No changes to commit"
           git push origin ${{ github.ref_name }}  # Push to the same branch in the target repo
+
