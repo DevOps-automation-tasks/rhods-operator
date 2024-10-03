@@ -168,14 +168,14 @@ jobs:
 
       - name: Retain RELATED_IMAGE and relatedImages sections
         run: |
-          # Step 1: Extract relatedImages section from the source CSV and save it to a temp file
+          # Step 1: Extract the relatedImages section from the source CSV and save it to a temp file
           yq eval '.spec.relatedImages' source_repo/bundle/manifests/*.clusterserviceversion.yaml > /tmp/relatedImages_section.yaml
-              
-          # Step 2: Remove relatedImages section temporarily from the source CSV
+    
+          # Step 2: Remove the relatedImages section temporarily from the source CSV
           yq eval 'del(.spec.relatedImages)' -i source_repo/bundle/manifests/*.clusterserviceversion.yaml
-              
-          # Step 3: Re-add the extracted relatedImages section back to the source CSV
-          yq eval-all 'select(fileIndex == 0) * select(fileIndex == 1)' source_repo/bundle/manifests/*.clusterserviceversion.yaml /tmp/relatedImages_section.yaml > /tmp/new_csv.yaml
+    
+          # Step 3: Add the extracted relatedImages section back to the source CSV
+          yq eval-all 'select(fileIndex == 0) | .spec.relatedImages = load("/tmp/relatedImages_section.yaml")' source_repo/bundle/manifests/*.clusterserviceversion.yaml > /tmp/new_csv.yaml
           mv /tmp/new_csv.yaml source_repo/bundle/manifests/*.clusterserviceversion.yaml
 
 
