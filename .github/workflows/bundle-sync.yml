@@ -166,22 +166,18 @@ jobs:
             yq eval ".spec.relatedImages[] |= (.image = \"$image\")" -i source_repo/bundle/manifests/*.clusterserviceversion.yaml
           done
 
-      - name: Sync RELATED_IMAGE and relatedImages sections
+      - name: Retain RELATED_IMAGE and relatedImages sections
         run: |
+          # Step 1: Extract relatedImages section from the source CSV and save it to a temp file
           yq eval '.spec.relatedImages' source_repo/bundle/manifests/*.clusterserviceversion.yaml > /tmp/relatedImages_section.yaml
-          
-          # Ensure relatedImages section is not deleted
+              
+          # Step 2: Remove relatedImages section temporarily from the source CSV
           yq eval 'del(.spec.relatedImages)' -i source_repo/bundle/manifests/*.clusterserviceversion.yaml
-          
-          # Add the extracted relatedImages section back to the source CSV
+              
+          # Step 3: Re-add the extracted relatedImages section back to the source CSV
           yq eval-all 'select(fileIndex == 0) * select(fileIndex == 1)' source_repo/bundle/manifests/*.clusterserviceversion.yaml /tmp/relatedImages_section.yaml > /tmp/new_csv.yaml
           mv /tmp/new_csv.yaml source_repo/bundle/manifests/*.clusterserviceversion.yaml
-          
-          # Sync RELATED_IMAGE values from target repo to source CSV
-          for related_image in $(yq eval '.spec.relatedImages[].name' /tmp/rbc_csv.yaml); do
-            image_value=$(yq eval ".spec.relatedImages[] | select(.name == \"$related_image\").image" /tmp/rbc_csv.yaml)
-            yq eval ".spec.relatedImages[] |= select(.name == \"$related_image\").image = \"$image_value\"" -i source_repo/bundle/manifests/*.clusterserviceversion.yaml
-          done
+
 
       - name: Verify RELATED_IMAGE Values
         run: |
