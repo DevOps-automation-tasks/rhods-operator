@@ -177,7 +177,7 @@ jobs:
           csv_file="target_repo/bundle/manifests/rhods-operator.clusterserviceversion.yaml"
           source_csv_file="source_repo/bundle/manifests/rhods-operator.clusterserviceversion.yaml"
 
-           Load the original relatedImages from the target CSV
+          #Load the original relatedImages from the target CSV
           related_images=$(yq eval '.spec.relatedImages' "$csv_file")
           
           # Remove the relatedImages section in the source CSV to avoid overwriting
