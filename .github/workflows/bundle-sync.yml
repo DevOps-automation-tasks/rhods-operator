@@ -137,11 +137,10 @@ jobs:
           path: target_repo
           ref: ${{ github.ref_name }}  # Use the same branch name as in the event
 
-      - name: Remove unnecessary fields from CSV
+      - name: Remove unnecessary fields from source CSV
         run: |
-          # Remove unwanted fields from the source CSV
-          yq eval 'del(.spec.skipRange)' -i source_repo/bundle/manifests/*.clusterserviceversion.yaml
-          yq eval 'del(.spec.replaces)' -i source_repo/bundle/manifests/*.clusterserviceversion.yaml
+          # Remove unwanted fields from the source CSV, but keep relatedImages and RELATED_IMAGE sections
+          yq eval 'del(.spec.skipRange, .spec.replaces)' -i source_repo/bundle/manifests/*.clusterserviceversion.yaml
 
       - name: Remove channels and defaultChannel from annotations.yaml
         run: |
@@ -173,22 +172,39 @@ jobs:
           # Sync files from source_repo/bundle to target_repo/bundle
           sync_files "source_repo/bundle" "target_repo/bundle"
 
-      - name: Retain RELATED_IMAGE and relatedImages sections from target CSV
+      - name: Preserve relatedImages and RELATED_IMAGE sections
         run: |
           csv_file="target_repo/bundle/manifests/rhods-operator.clusterserviceversion.yaml"
-          if [ -f "$csv_file" ]; then
-            # Restore the RELATED_IMAGE and relatedImages sections from the target CSV
-            echo "Restoring RELATED_IMAGE and relatedImages sections."
-            cp "$csv_file" source_repo/bundle/manifests/rhods-operator.clusterserviceversion.yaml
-          else
-            echo "No target CSV file found. Skipping restoration of RELATED_IMAGE and relatedImages."
-          fi
+          source_csv_file="source_repo/bundle/manifests/rhods-operator.clusterserviceversion.yaml"
+
+          # Load the original relatedImages and RELATED_IMAGE sections
+          related_images=$(yq eval '.spec.relatedImages' "$csv_file")
+          related_image_envs=$(yq eval '.spec.install.spec.deployments[0].spec.template.spec.containers[].env[] | select(.name | startswith("RELATED_IMAGE_"))' "$csv_file")
+
+          # Remove the images section in the source CSV to avoid overwriting
+          yq eval 'del(.spec.relatedImages)' -i "$source_csv_file"
+
+          # Merge back the original relatedImages from the target CSV
+          echo "Restoring relatedImages and RELATED_IMAGE sections."
+          yq eval -i '.spec.relatedImages = load("target_repo/bundle/manifests/rhods-operator.clusterserviceversion.yaml").spec.relatedImages' "$source_csv_file"
+
+          # Restore the RELATED_IMAGE_* sections
+          for row in $(echo "$related_image_envs" | yq -r '.name' -); do
+            value=$(echo "$related_image_envs" | yq -r --arg name "$row" '. | select(.name == $name).value')
+            yq eval -i ".spec.install.spec.deployments[0].spec.template.spec.containers[].env += [{name: \"$row\", value: \"$value\"}]" "$source_csv_file"
+          done
+
+      - name: Remove Unwanted Labels from Dockerfile
+        run: |
+          # Remove specific labels from the Dockerfile in the target repo
+          dockerfile_path="target_repo/Dockerfiles/bundle.Dockerfile"
+          yq eval 'del(.annotations."operators.operatorframework.io.bundle.channels.v1", .annotations."operators.operatorframework.io.bundle.channel.default.v1")' -i "$dockerfile_path"
 
       - name: Sync Dockerfile
         run: |
-          if ! diff -q source_repo/Dockerfiles/bundle.Dockerfile target_repo/bundle/Dockerfile > /dev/null 2>&1; then
+          if ! diff -q source_repo/Dockerfiles/bundle.Dockerfile target_repo/Dockerfiles/bundle.Dockerfile > /dev/null 2>&1; then
             echo "Updating Dockerfile"
-            cp source_repo/Dockerfiles/bundle.Dockerfile target_repo/bundle/Dockerfile
+            cp source_repo/Dockerfiles/bundle.Dockerfile target_repo/Dockerfiles/bundle.Dockerfile
           else
             echo "No changes in Dockerfile"
           fi
