@@ -149,35 +149,22 @@ jobs:
 
       - name: Remove labels from Dockerfile
         run: |
-          # Remove the LABEL operators.operatorframework.io.bundle.channels.v1
           sed -i '/LABEL operators.operatorframework.io.bundle.channels.v1=/d' source_repo/Dockerfiles/bundle.Dockerfile
-          
-          # Remove the LABEL operators.operatorframework.io.bundle.channel.default.v1
           sed -i '/LABEL operators.operatorframework.io.bundle.channel.default.v1=/d' source_repo/Dockerfiles/bundle.Dockerfile
-
 
       - name: Retain current image digests in the RBC repo
         run: |
-          # Backup the current image digests from the target repo CSV
           yq eval '.spec.relatedImages[] | select(.name == "rhods-operator")' target_repo/bundle/manifests/*.clusterserviceversion.yaml > /tmp/rbc_csv.yaml
-          
-          # Replace image digests in the source CSV with the backed up ones
           for image in $(yq eval '.image' /tmp/rbc_csv.yaml); do
             yq eval ".spec.relatedImages[] |= (.image = \"$image\")" -i source_repo/bundle/manifests/*.clusterserviceversion.yaml
           done
 
       - name: Retain RELATED_IMAGE and relatedImages sections
         run: |
-          # Step 1: Extract the relatedImages section from the source CSV and save it to a temp file
           yq eval '.spec.relatedImages' source_repo/bundle/manifests/*.clusterserviceversion.yaml > /tmp/relatedImages_section.yaml
-    
-          # Step 2: Remove the relatedImages section temporarily from the source CSV
           yq eval 'del(.spec.relatedImages)' -i source_repo/bundle/manifests/*.clusterserviceversion.yaml
-    
-          # Step 3: Add the extracted relatedImages section back to the source CSV
           yq eval-all 'select(fileIndex == 0) | .spec.relatedImages = load("/tmp/relatedImages_section.yaml")' source_repo/bundle/manifests/*.clusterserviceversion.yaml > /tmp/new_csv.yaml
           mv /tmp/new_csv.yaml source_repo/bundle/manifests/*.clusterserviceversion.yaml
-
 
       - name: Verify RELATED_IMAGE Values
         run: |
@@ -207,7 +194,22 @@ jobs:
           }
           sync_files "source_repo/bundle" "target_repo/bundle"
 
-          # Sync Dockerfile
+      # Sync Dockerfile
+      - name: Sync Dockerfile
+        run: |
           if ! diff -q source_repo/Dockerfiles/bundle.Dockerfile target_repo/bundle/Dockerfile > /dev/null 2>&1; then
+            echo "Updating Dockerfile"
             cp source_repo/Dockerfiles/bundle.Dockerfile target_repo/bundle/Dockerfile
+          else
+            echo "No changes in Dockerfile"
           fi
+
+      - name: Commit and Push Changes to Target Repo
+        run: |
+          cd target_repo
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add .
+          git commit -m "Sync changes from source repo" || echo "No changes to commit"
+          git push origin ${{ github.ref_name }}  # Push to the same branch in the target repo
+
