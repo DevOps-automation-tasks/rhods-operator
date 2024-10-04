@@ -95,6 +95,7 @@
 #           git commit -m "Sync changes from source repo" || echo "No changes to commit"
 #           git push origin ${{ github.ref_name }}  # Push to the same branch in the target repo
 
+
 name: Sync Bundle from Operator Repo to RBC Repo
 
 on:
@@ -120,7 +121,6 @@ jobs:
           sudo apt-get install -y jq
           sudo wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq
           sudo chmod +x /usr/bin/yq
-
       - name: Checkout source repo
         uses: actions/checkout@v3
         with:
@@ -139,8 +139,17 @@ jobs:
 
       - name: Remove unnecessary fields from source CSV
         run: |
-          # Remove unwanted fields from the source CSV, but keep relatedImages and RELATED_IMAGE sections
+          # Load existing CSV to extract relatedImages first
+          existing_csv=$(cat source_repo/bundle/manifests/*.clusterserviceversion.yaml)
+          related_images=$(echo "$existing_csv" | yq '.spec.relatedImages')
+
+          # Remove unwanted fields from the source CSV but keep relatedImages
           yq eval 'del(.spec.skipRange, .spec.replaces)' -i source_repo/bundle/manifests/*.clusterserviceversion.yaml
+
+          # Restore relatedImages section back
+          new_csv=$(cat source_repo/bundle/manifests/*.clusterserviceversion.yaml)
+          updated_csv=$(echo "$new_csv" | yq --argjson relatedImages "$related_images" '.spec.relatedImages = $relatedImages')
+          echo "$updated_csv" > source_repo/bundle/manifests/rhods-operator.clusterserviceversion.yaml
 
       - name: Remove channels and defaultChannel from annotations.yaml
         run: |
@@ -172,26 +181,6 @@ jobs:
           # Sync files from source_repo/bundle to target_repo/bundle
           sync_files "source_repo/bundle" "target_repo/bundle"
 
-      - name: Restore relatedImages and RELATED_IMAGE environment variables
-        run: |
-
-          # Load existing CSV
-          existing_csv=$(cat bundle/manifests/rhods-operator.clusterserviceversion.yaml)
-          
-          # Extract the relatedImages section
-          related_images=$(echo "$existing_csv" | yq '.spec.relatedImages')
-          
-          
-          # For example, if you're adding a new spec field or updating other parts:
-          new_csv=$(echo "$existing_csv" | yq '...') # your other modifications
-          
-          # Restore the relatedImages section back into the new CSV
-          updated_csv=$(echo "$new_csv" | yq --argjson relatedImages "$related_images" '.spec.relatedImages = $relatedImages')
-          
-          # Write the updated CSV back to the file
-          echo "$updated_csv" > bundle/manifests/rhods-operator.clusterserviceversion.yaml
-
-      
       - name: Sync Dockerfile
         run: |
           if ! diff -q source_repo/Dockerfiles/bundle.Dockerfile target_repo/bundle/Dockerfile > /dev/null 2>&1; then
