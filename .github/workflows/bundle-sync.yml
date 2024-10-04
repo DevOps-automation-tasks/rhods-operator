@@ -157,15 +157,25 @@ jobs:
           SOURCE_CSV=source_repo/bundle/manifests/rhods-operator.clusterserviceversion.yaml
           TARGET_CSV=target_repo/bundle/manifests/rhods-operator.clusterserviceversion.yaml
 
+          # Check if the files exist
+          if [ ! -f "$SOURCE_CSV" ] || [ ! -f "$TARGET_CSV" ]; then
+            echo "Source or target CSV file does not exist."
+            exit 1
+          fi
+
           # Step 1: Load existing target CSV and extract relatedImages and RELATED_IMAGES
-          related_images=$(yq e '.spec.relatedImages' "$TARGET_CSV")
-          related_images_upper=$(yq e '.spec.RELATED_IMAGES' "$TARGET_CSV")
+          related_images=$(yq e '.spec.relatedImages' "$TARGET_CSV" || echo "[]")
+          related_images_upper=$(yq e '.spec.RELATED_IMAGES' "$TARGET_CSV" || echo "[]")
+
+          echo "Related Images: $related_images"
+          echo "Related Images Upper: $related_images_upper"
 
           # Step 2: Load the source CSV and remove the relatedImages sections
-          source_csv=$(yq e 'del(.spec.relatedImages, .spec.RELATED_IMAGES)' "$SOURCE_CSV")
+          source_csv=$(yq e 'del(.spec.relatedImages, .spec.RELATED_IMAGES)' "$SOURCE_CSV" || echo "{}")
+
+          echo "Source CSV: $source_csv"
 
           # Step 3: Merge source content with the target's relatedImages
-          # This assumes that you want to keep the other content from the target
           updated_csv=$(echo "$source_csv" | yq e ".spec.relatedImages = $related_images" - | yq e ".spec.RELATED_IMAGES = $related_images_upper" -)
 
           # Step 4: Write the updated CSV back to the target
