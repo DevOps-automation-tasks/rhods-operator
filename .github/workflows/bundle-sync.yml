@@ -168,7 +168,7 @@ jobs:
          # Step 3: Merge source content with the target's relatedImages
          updated_csv=$(echo "$modified_source" | yq e "
            .spec.relatedImages = $related_images |
-         ")
+         " -)
 
          # Step 4: Write the updated CSV back to the target
          echo "$updated_csv" > "$TARGET_CSV"
