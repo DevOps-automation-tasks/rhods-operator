@@ -95,7 +95,6 @@
 #           git commit -m "Sync changes from source repo" || echo "No changes to commit"
 #           git push origin ${{ github.ref_name }}  # Push to the same branch in the target repo
 
-
 name: Sync Bundle from Operator Repo to RBC Repo
 
 on:
@@ -115,7 +114,7 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - name: Install yq and jq
+      - name: Install yq
         run: |
           sudo apt-get update
           sudo apt-get install -y jq
@@ -173,10 +172,11 @@ jobs:
           # Sync files from source_repo/bundle to target_repo/bundle
           sync_files "source_repo/bundle" "target_repo/bundle"
 
-      - name: Preserve relatedImages and RELATED_IMAGE sections
+      - name: Restore relatedImages and RELATED_IMAGE environment variables
         run: |
           csv_file="target_repo/bundle/manifests/rhods-operator.clusterserviceversion.yaml"
           source_csv_file="source_repo/bundle/manifests/rhods-operator.clusterserviceversion.yaml"
+
           # Load the original relatedImages from the target CSV
           related_images=$(yq eval '.spec.relatedImages' "$csv_file")
 
@@ -191,15 +191,13 @@ jobs:
           related_image_envs=$(yq eval '.spec.install.spec.deployments[0].spec.template.spec.containers[].env[] | select(.name | test("^RELATED_IMAGE_"))' "$csv_file")
 
           # Loop through and restore related image environment variables
-          echo "$related_image_envs" | yq eval -o=json '.name' | while IFS= read -r row; do
-              name=$(echo "$row" | yq eval -r '.name')
-              value=$(echo "$row" | yq eval -r '.value')
+          echo "$related_image_envs" | yq eval -o=json | jq -c '.[]' | while IFS= read -r row; do
+              name=$(echo "$row" | jq -r '.name')
+              value=$(echo "$row" | jq -r '.value')
 
-              if [ -n "$name" ] && ! yq eval "any(.spec.install.spec.deployments[0].spec.template.spec.containers[].env[]; .name == \"$name\")" "$source_csv_file"; then
-                  echo "Restoring $name"
-                  # Append the environment variable to the source CSV
-                  yq eval -i ".spec.install.spec.deployments[0].spec.template.spec.containers[].env += [{name: \"$name\", value: \"$value\"}]" "$source_csv_file"
-              fi
+              # Restore the environment variable in the source CSV
+              echo "Restoring $name"
+              yq eval -i ".spec.install.spec.deployments[0].spec.template.spec.containers[].env += [{name: \"$name\", value: \"$value\"}]" "$source_csv_file"
           done
 
       - name: Remove Unwanted Labels from Dockerfile
