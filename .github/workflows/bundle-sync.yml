@@ -186,10 +186,13 @@ jobs:
             value=$(echo "$line" | cut -d: -f2- | xargs) # Trim leading spaces from the value
             
             # Check if the RELATED_IMAGE field already exists
-            existing=$(yq eval ".spec.containers[].env[] | select(.name == \"$key\").value" target_repo/bundle/manifests/*.clusterserviceversion.yaml)
+            existing_value=$(yq eval ".spec.containers[].env[] | select(.name == \"$key\").value" target_repo/bundle/manifests/*.clusterserviceversion.yaml)
 
-            # If it doesn't exist, add it
-            if [ -z "$existing" ]; then
+            # If the RELATED_IMAGE exists, only update if it's empty
+            if [ -n "$existing_value" ]; then
+              echo "RELATED_IMAGE '$key' already exists with value '$existing_value'. Not updating."
+            else
+              echo "Updating RELATED_IMAGE '$key' with value '$value'."
               yq eval -i ".spec.containers[].env += [{name: \"$key\", value: \"$value\"}]" target_repo/bundle/manifests/*.clusterserviceversion.yaml
             fi
             
@@ -202,23 +205,32 @@ jobs:
 
             if [ "$related_images_present" == "false" ]; then
               # If it doesn't exist, create the relatedImages section
+              echo "Creating relatedImages section."
               yq eval -i '.spec.relatedImages = load("/tmp/backup_relatedImages.txt")' target_repo/bundle/manifests/*.clusterserviceversion.yaml
             else
               # If it exists, append the relatedImages (assuming the format is an array)
+              echo "Appending to existing relatedImages section."
               yq eval -i '.spec.relatedImages += load("/tmp/backup_relatedImages.txt")' target_repo/bundle/manifests/*.clusterserviceversion.yaml
             fi
           fi
 
 
-
-
-
-      - name: Commit and Push Changes to Target Repo
+      - name: Debug Existing RELATED_IMAGE Fields
         run: |
-          cd target_repo
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
-          git add .
-          git commit -m "Sync changes from source repo" || echo "No changes to commit"
-          git push origin ${{ github.ref_name }}
+          echo "Existing RELATED_IMAGE fields before restoration:"
+          yq eval '.spec.containers[].env[] | select(.name == "RELATED_IMAGE")' target_repo/bundle/manifests/*.clusterserviceversion.yaml
+
+      - name: Debug Target CSV File After Restoration
+        run: |
+          echo "Target CSV after restoration:"
+          cat target_repo/bundle/manifests/*.clusterserviceversion.yaml
+
+     # - name: Commit and Push Changes to Target Repo
+     #   run: |
+      #    cd target_repo
+     #     git config user.name "GitHub Actions"
+     #     git config user.email "actions@github.com"
+      #    git add .
+       #   git commit -m "Sync changes from source repo" || echo "No changes to commit"
+       #   git push origin ${{ github.ref_name }}
 
