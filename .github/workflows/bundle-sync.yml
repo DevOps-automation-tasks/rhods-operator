@@ -173,12 +173,12 @@ jobs:
             fi
           done < /tmp/backup_related_image.txt
 
-          # Restore the relatedImages section exactly as it was backed up
+          # Restore the relatedImages section
           if [[ -s /tmp/backup_relatedImages.txt ]]; then
             # Remove existing relatedImages section first
             sed -i '/relatedImages:/,/]/d' target_repo/bundle/manifests/*.clusterserviceversion.yaml
             # Append the backed-up relatedImages section
-            sed -i "/^spec:/r /tmp/backup_relatedImages.txt" target_repo/bundle/manifests/*.clusterserviceversion.yaml
+            sed -i '/^spec:/r /tmp/backup_relatedImages.txt' target_repo/bundle/manifests/*.clusterserviceversion.yaml
           fi
 
       - name: Sync Dockerfile
@@ -197,5 +197,6 @@ jobs:
           git config user.email "actions@github.com"
           git add .
           git commit -m "Sync changes from source repo" || echo "No changes to commit"
+          git push origin ${{ github.ref_name }}  # Push to the same branch in the target repo
           git push origin ${{ github.ref_name }}  # Push to the same branch in the target repo
 
