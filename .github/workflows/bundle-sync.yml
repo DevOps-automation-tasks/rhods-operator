@@ -153,7 +153,7 @@ jobs:
           cp target_repo/bundle/manifests/*.clusterserviceversion.yaml /tmp/target_csv.yaml
 
           # Backup RELATED_IMAGE fields
-          grep -E 'RELATED_IMAGE_' /tmp/target_csv.yaml > /tmp/backup_related_image.txt || echo "No RELATED_IMAGE fields found."
+          grep -E 'RELATED_IMAGE_[^ ]+' /tmp/target_csv.yaml > /tmp/backup_related_image.txt || echo "No RELATED_IMAGE fields found."
 
           # Backup relatedImages section (multi-line)
           awk '/relatedImages:/,/]/' /tmp/target_csv.yaml > /tmp/backup_relatedImages.txt || echo "No relatedImages section found."
@@ -197,6 +197,5 @@ jobs:
           git config user.email "actions@github.com"
           git add .
           git commit -m "Sync changes from source repo" || echo "No changes to commit"
-          git push origin ${{ github.ref_name }}  # Push to the same branch in the target repo
           git push origin ${{ github.ref_name }}  # Push to the same branch in the target repo
 
