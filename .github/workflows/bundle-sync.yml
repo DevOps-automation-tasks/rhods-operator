@@ -136,7 +136,7 @@ jobs:
           sudo apt-get install -y rsync
           # Install yq
           VERSION=v4.34.2  # Specify the version of yq to install
-          wget https://github.com/mikefarah/yq/releases/download/${VERSION}/yq_linux_amd64 -O /usr/bin/yq
+          sudo wget https://github.com/mikefarah/yq/releases/download/${VERSION}/yq_linux_amd64 -O /usr/bin/yq
           # Set permissions for yq
           sudo chmod +x /usr/bin/yq
 
