@@ -95,6 +95,7 @@
 #           git commit -m "Sync changes from source repo" || echo "No changes to commit"
 #           git push origin ${{ github.ref_name }}  # Push to the same branch in the target repo
 
+
 name: Sync Bundle from Operator Repo to RBC Repo
 
 on:
@@ -140,28 +141,38 @@ jobs:
           # Remove the entire line containing "operators.operatorframework.io.bundle.channels.v1"
           sed -i '/operators.operatorframework.io.bundle.channels.v1:/d' source_repo/bundle/metadata/annotations.yaml
     
-          # Remove the entire line containing "operators.operatorframework.io.bundle.channel.default.v1"
+          # Remove the entire line containing "operators.operatorframework.io.bundle.channel.default.v1:"
           sed -i '/operators.operatorframework.io.bundle.channel.default.v1:/d' source_repo/bundle/metadata/annotations.yaml
 
       - name: Backup image, RELATED_IMAGE, and relatedImages fields from target repo
         run: |
-          # Backup the target repo image, RELATED_IMAGE, and relatedImages fields
+          # Backup the target repo image and RELATED_IMAGE fields
           cp target_repo/bundle/manifests/*.clusterserviceversion.yaml /tmp/target_csv.yaml
           
-          # Backup both RELATED_IMAGE and relatedImages fields
-          grep -E 'image:|RELATED_IMAGE_|relatedImages:' /tmp/target_csv.yaml > /tmp/backup_images_relatedImages.txt
+          # Backup RELATED_IMAGE and the entire relatedImages section
+          grep -E 'image:|RELATED_IMAGE_' /tmp/target_csv.yaml > /tmp/backup_images.txt
+          # Backup the entire relatedImages section (multi-line)
+          awk '/relatedImages:/,/]/' /tmp/target_csv.yaml > /tmp/backup_relatedImages.txt
 
       - name: Sync files from source to target repo excluding image, RELATED_IMAGE, and relatedImages fields
         run: |
           # Copy the source files to the target repo
           rsync -av --exclude="*.clusterserviceversion.yaml" source_repo/bundle/ target_repo/bundle/
           
-          # Merge the target image, RELATED_IMAGE, and relatedImages fields back into the synced target CSV
+          # Restore the original image and RELATED_IMAGE fields
           while read -r line; do
             key=$(echo "$line" | cut -d: -f1)
             value=$(echo "$line" | cut -d: -f2-)
             sed -i "s|$key:.*|$key:$value|g" target_repo/bundle/manifests/*.clusterserviceversion.yaml
-          done < /tmp/backup_images_relatedImages.txt
+          done < /tmp/backup_images.txt
+          
+          # Restore the relatedImages section
+          if grep -q 'relatedImages:' target_repo/bundle/manifests/*.clusterserviceversion.yaml; then
+            # Remove the existing relatedImages section from the target repo CSV
+            sed -i '/relatedImages:/,/\]/d' target_repo/bundle/manifests/*.clusterserviceversion.yaml
+            # Add the original relatedImages section from the backup
+            sed -i '/^spec:/r /tmp/backup_relatedImages.txt' target_repo/bundle/manifests/*.clusterserviceversion.yaml
+          fi
 
       - name: Sync Dockerfile
         run: |
@@ -180,6 +191,5 @@ jobs:
           git add .
           git commit -m "Sync changes from source repo" || echo "No changes to commit"
           git push origin ${{ github.ref_name }}  # Push to the same branch in the target repo
-
           git push origin ${{ github.ref_name }}  # Push to the same branch in the target repo
 
