@@ -185,20 +185,25 @@ jobs:
             key=$(echo "$line" | cut -d: -f1)
             value=$(echo "$line" | cut -d: -f2- | xargs) # Trim leading spaces from the value
             
-            # Use yq to set the RELATED_IMAGE field in the target CSV
-            yq eval -i ".metadata.annotations[\"$key\"] = \"$value\"" target_repo/bundle/manifests/*.clusterserviceversion.yaml
+            # Use yq to only set the RELATED_IMAGE field if it does not already exist
+            if ! yq eval "has(.spec.containers[].env[] | select(.name == \"$key\"))" target_repo/bundle/manifests/*.clusterserviceversion.yaml; then
+              yq eval -i ".spec.containers[].env += [{name: \"$key\", value: \"$value\"}]" target_repo/bundle/manifests/*.clusterserviceversion.yaml
+            fi
             
           done < /tmp/backup_related_image.txt
 
-          # Restore the relatedImages section
+          # Restore the relatedImages section if it exists
           if [[ -s /tmp/backup_relatedImages.txt ]]; then
-            # Remove existing relatedImages section first
-            yq eval -i 'del(.relatedImages)' target_repo/bundle/manifests/*.clusterserviceversion.yaml
-            
-            # Append the backed-up relatedImages section
-            # Use yq to append the relatedImages section to the spec
+            # Use yq to ensure the relatedImages section is present and append the data
             yq eval -i '.spec.relatedImages = load("/tmp/backup_relatedImages.txt")' target_repo/bundle/manifests/*.clusterserviceversion.yaml
           fi
+
+      - name: Debug Target YAML File
+        run: |
+          echo "Target CSV after restoration:"
+          cat target_repo/bundle/manifests/*.clusterserviceversion.yaml
+
+
 
 
       - name: Commit and Push Changes to Target Repo
