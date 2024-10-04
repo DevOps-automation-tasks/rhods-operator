@@ -157,24 +157,25 @@ jobs:
           # Define the source and target paths
           TARGET_CSV=target_repo/bundle/manifests/rhods-operator.clusterserviceversion.yaml
           SOURCE_CSV=source_repo/bundle/manifests/rhods-operator.clusterserviceversion.yaml
-
+          
           # Step 1: Load existing target CSV and extract relatedImages, RELATED_IMAGES, and containerImage
           related_images=$(yq e '.spec.relatedImages' "$TARGET_CSV" | yq e -P -)
           related_images_upper=$(yq e '.spec.RELATED_IMAGES' "$TARGET_CSV" | yq e -P -)
           container_image=$(yq e '.spec.template.spec.containers[0].image' "$TARGET_CSV")
-
+          
           # Step 2: Remove unwanted fields from the source CSV but keep relatedImages and RELATED_IMAGES
           modified_source=$(yq e 'del(.spec.skipRange, .spec.replaces)' "$SOURCE_CSV")
-
-          # Step 3: Merge source content with the target's relatedImages and RELATED_IMAGES while keeping containerImage unchanged
+          
+          # Step 3: Append source's relatedImages and RELATED_IMAGES to target
           updated_csv=$(echo "$modified_source" | yq e "
-          .spec.relatedImages = $related_images |
-          .spec.RELATED_IMAGES = $related_images_upper |
-          .spec.template.spec.containers[0].image = \"$container_image\"
-          " -)
-
+            .spec.relatedImages = ($related_images + .spec.relatedImages) |
+            .spec.RELATED_IMAGES = ($related_images_upper + .spec.RELATED_IMAGES) |
+            .spec.template.spec.containers[0].image = \"$container_image\"
+          ")
+          
           # Step 4: Write the updated CSV back to the target
           echo "$updated_csv" > "$TARGET_CSV"
+
         
              
       - name: Compare and Sync Changes
