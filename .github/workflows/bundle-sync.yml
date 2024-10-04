@@ -95,7 +95,6 @@
 #           git commit -m "Sync changes from source repo" || echo "No changes to commit"
 #           git push origin ${{ github.ref_name }}  # Push to the same branch in the target repo
 
-
 name: Sync Bundle from Operator Repo to RBC Repo
 
 on:
@@ -131,6 +130,11 @@ jobs:
           path: target_repo
           ref: ${{ github.ref_name }}  # Use the same branch name as in the event
 
+      - name: Install rsync
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rsync
+
       - name: Remove unnecessary fields from CSV
         run: |
           sed -i '/olm.skipRange/d' source_repo/bundle/manifests/*.clusterserviceversion.yaml
@@ -154,40 +158,13 @@ jobs:
             sed -i "s|$key=.*|$key=$value|g" source_repo/bundle/manifests/*.clusterserviceversion.yaml
           done
 
-      - name: Compare and Sync Changes
+      - name: Sync Files Using rsync
         run: |
-          # Function to compare and sync files
-          sync_files() {
-            local source_dir=$1
-            local target_dir=$2
-            for file in $(find $source_dir -type f); do
-              relative_path=$(realpath --relative-to="$source_dir" "$file")
-              target_file="$target_dir/$relative_path"
-              if [ -f "$target_file" ]; then
-                if ! diff -q "$file" "$target_file" > /dev/null 2>&1; then
-                  echo "Updating $target_file"
-                  cp "$file" "$target_file"
-                else
-                  echo "No changes in $target_file"
-                fi
-              else
-                echo "New file detected, copying $file to target repo"
-                mkdir -p "$(dirname "$target_file")"
-                cp "$file" "$target_file"
-              fi
-            done
-          }
-
-          # Sync files from source_repo/bundle to target_repo/bundle
-          sync_files "source_repo/bundle" "target_repo/bundle"
+          # Sync bundle directory from source to target using rsync
+          rsync -av --progress source_repo/bundle/ target_repo/bundle/
 
           # Sync Dockerfile
-          if ! diff -q source_repo/Dockerfiles/bundle.Dockerfile target_repo/bundle/Dockerfile > /dev/null 2>&1; then
-            echo "Updating Dockerfile"
-            cp source_repo/Dockerfiles/bundle.Dockerfile target_repo/bundle/Dockerfile
-          else
-            echo "No changes in Dockerfile"
-          fi
+          rsync -av --progress source_repo/Dockerfiles/bundle.Dockerfile target_repo/bundle/Dockerfile
 
       - name: Commit and Push Changes to Target Repo
         run: |
@@ -196,5 +173,8 @@ jobs:
           git config user.email "actions@github.com"
           git add .
           git commit -m "Sync changes from source repo" || echo "No changes to commit"
+          git push origin ${{ github.ref_name }}
+
+
           git push origin ${{ github.ref_name }}  # Push to the same branch in the target repo
 
