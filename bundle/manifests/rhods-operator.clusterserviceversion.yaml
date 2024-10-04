@@ -1,5 +1,5 @@
 ---
-apiVersion: operators.coreos.com/v1alpha13
+apiVersion: operators.coreos.com/v1alpha1
 kind: ClusterServiceVersion
 metadata:
   annotations:
