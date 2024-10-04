@@ -151,35 +151,27 @@ jobs:
           yq eval 'del(.annotations."operators.operatorframework.io.bundle.channels.v1")' -i source_repo/bundle/metadata/annotations.yaml
           yq eval 'del(.annotations."operators.operatorframework.io.bundle.channel.default.v1")' -i source_repo/bundle/metadata/annotations.yaml
 
-      - name: Merge source changes into target CSV
+      - name: Load existing CSV to extract relatedImages
+        id: extract_related_images
         run: |
           # Define the source and target paths
-          SOURCE_CSV=source_repo/bundle/manifests/rhods-operator.clusterserviceversion.yaml
           TARGET_CSV=target_repo/bundle/manifests/rhods-operator.clusterserviceversion.yaml
-
-          # Check if the files exist
-          if [ ! -f "$SOURCE_CSV" ] || [ ! -f "$TARGET_CSV" ]; then
-            echo "Source or target CSV file does not exist."
-            exit 1
-          fi
-
+          SOURCE_CSV=source_repo/bundle/manifests/rhods-operator.clusterserviceversion.yaml
+          
           # Step 1: Load existing target CSV and extract relatedImages and RELATED_IMAGES
-          related_images=$(yq e '.spec.relatedImages' "$TARGET_CSV" || echo "[]")
-          related_images_upper=$(yq e '.spec.RELATED_IMAGES' "$TARGET_CSV" || echo "[]")
+          related_images=$(awk '/relatedImages:/{flag=1;next}/^[[:space:]]*$/{flag=0}flag' "$TARGET_CSV" | sed 's/^[ \t]*//;s/[ \t]*$//')
+          related_images_upper=$(awk '/RELATED_IMAGES:/{flag=1;next}/^[[:space:]]*$/{flag=0}flag' "$TARGET_CSV" | sed 's/^[ \t]*//;s/[ \t]*$//')
 
-          echo "Related Images: $related_images"
-          echo "Related Images Upper: $related_images_upper"
-
-          # Step 2: Load the source CSV and remove the relatedImages sections
-          source_csv=$(yq e 'del(.spec.relatedImages, .spec.RELATED_IMAGES)' "$SOURCE_CSV" || echo "{}")
-
-          echo "Source CSV: $source_csv"
+          # Step 2: Load the source CSV and remove unwanted fields
+          sed -i.bak '/skipRange/d; /replaces/d' "$SOURCE_CSV"
 
           # Step 3: Merge source content with the target's relatedImages
-          updated_csv=$(echo "$source_csv" | yq e ".spec.relatedImages = $related_images" - | yq e ".spec.RELATED_IMAGES = $related_images_upper" -)
-
-          # Step 4: Write the updated CSV back to the target
-          echo "$updated_csv" > "$TARGET_CSV"
+          # Add back the relatedImages into the modified source CSV
+          awk -v images="$related_images" -v images_upper="$related_images_upper" '
+          BEGIN { print "spec:" }
+          /^spec:/ { print; print "  relatedImages: " images; print "  RELATED_IMAGES: " images_upper; next }
+          { print }
+          ' "$SOURCE_CSV" > temp.yaml && mv temp.yaml "$TARGET_CSV"
 
 
       - name: Compare and Sync Changes
