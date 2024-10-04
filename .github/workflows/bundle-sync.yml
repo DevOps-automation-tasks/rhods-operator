@@ -167,9 +167,28 @@ jobs:
         run: |
           # Sync bundle directory from source to target using rsync
           rsync -av --progress source_repo/bundle/ target_repo/bundle/
-
           # Sync Dockerfile
           rsync -av --progress source_repo/Dockerfiles/bundle.Dockerfile target_repo/bundle/Dockerfile
+
+      - name: Restore RELATED_IMAGE fields and relatedImages section
+        run: |
+          # Restore the RELATED_IMAGE fields
+          while read -r line; do
+            key=$(echo "$line" | cut -d: -f1)
+            value=$(echo "$line" | cut -d: -f2- | xargs) # Trim leading spaces from the value
+            # Update only if different
+            if ! grep -q "$key: $value" target_repo/bundle/manifests/*.clusterserviceversion.yaml; then
+              sed -i "/spec:/a $key: $value" target_repo/bundle/manifests/*.clusterserviceversion.yaml
+            fi
+          done < /tmp/backup_related_image.txt
+
+          # Restore the relatedImages section
+          if [[ -s /tmp/backup_relatedImages.txt ]]; then
+            # Remove existing relatedImages section first
+            sed -i '/relatedImages:/,/]/d' target_repo/bundle/manifests/*.clusterserviceversion.yaml
+            # Append the backed-up relatedImages section
+            sed -i '/^spec:/r /tmp/backup_relatedImages.txt' target_repo/bundle/manifests/*.clusterserviceversion.yaml
+          fi
 
       - name: Commit and Push Changes to Target Repo
         run: |
@@ -179,5 +198,3 @@ jobs:
           git add .
           git commit -m "Sync changes from source repo" || echo "No changes to commit"
           git push origin ${{ github.ref_name }}
-
-
