@@ -146,15 +146,28 @@ jobs:
           # Remove unwanted fields from the source CSV but keep relatedImages
           yq eval 'del(.spec.skipRange, .spec.replaces)' -i source_repo/bundle/manifests/*.clusterserviceversion.yaml
 
-          # Restore relatedImages section back
-          new_csv=$(cat source_repo/bundle/manifests/*.clusterserviceversion.yaml)
-          updated_csv=$(echo "$new_csv" | yq --argjson relatedImages "$related_images" '.spec.relatedImages = $relatedImages')
-          echo "$updated_csv" > source_repo/bundle/manifests/rhods-operator.clusterserviceversion.yaml
-
       - name: Remove channels and defaultChannel from annotations.yaml
         run: |
           yq eval 'del(.annotations."operators.operatorframework.io.bundle.channels.v1")' -i source_repo/bundle/metadata/annotations.yaml
           yq eval 'del(.annotations."operators.operatorframework.io.bundle.channel.default.v1")' -i source_repo/bundle/metadata/annotations.yaml
+
+      - name: Restore relatedImages and RELATED_IMAGE environment variables
+        run: |
+          # Load existing CSV
+          existing_csv=$(cat target_repo/bundle/manifests/rhods-operator.clusterserviceversion.yaml)
+
+          # Extract the relatedImages section
+          related_images=$(echo "$existing_csv" | yq e '.spec.relatedImages' -)
+
+          # For example, if you're adding a new spec field or updating other parts:
+          new_csv=$(echo "$existing_csv" | yq e '...') # your other modifications
+
+          # Restore the relatedImages section back into the new CSV
+          updated_csv=$(echo "$new_csv" | yq e ".spec.relatedImages = $related_images" -)
+
+          # Write the updated CSV back to the file
+          echo "$updated_csv" > target_repo/bundle/manifests/rhods-operator.clusterserviceversion.yaml
+
 
       - name: Compare and Sync Changes
         run: |
