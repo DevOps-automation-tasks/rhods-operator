@@ -95,7 +95,6 @@
 #           git commit -m "Sync changes from source repo" || echo "No changes to commit"
 #           git push origin ${{ github.ref_name }}  # Push to the same branch in the target repo
 
-
 name: Sync Bundle from Operator Repo to RBC Repo
 
 on:
@@ -131,9 +130,9 @@ jobs:
           path: target_repo
           ref: ${{ github.ref_name }}  # Use the same branch name as in the event
 
-      - name: Check for existing .clusterserviceversion.yaml in target repo
+      - name: Verify target .clusterserviceversion.yaml exists
         run: |
-          if [ -z "$(ls -A target_repo/bundle/manifests/*.clusterserviceversion.yaml 2>/dev/null)" ]; then
+          if [ -z "$(ls target_repo/bundle/manifests/*.clusterserviceversion.yaml 2>/dev/null)" ]; then
             echo "No .clusterserviceversion.yaml file found in target_repo/bundle/manifests/"
             exit 1
           fi
@@ -150,29 +149,33 @@ jobs:
 
       - name: Backup relatedImages and RELATED_IMAGE fields from target repo
         run: |
-          # Backup the target repo relatedImages and RELATED_IMAGE fields
+          # Create a temporary file for backup
           cp target_repo/bundle/manifests/*.clusterserviceversion.yaml /tmp/target_csv.yaml
-          
+
           # Backup RELATED_IMAGE fields
           grep -E 'RELATED_IMAGE_' /tmp/target_csv.yaml > /tmp/backup_related_image.txt
-          
+
           # Backup relatedImages section (multi-line)
           awk '/relatedImages:/,/]/' /tmp/target_csv.yaml > /tmp/backup_relatedImages.txt
 
       - name: Sync files from source to target repo excluding relatedImages and RELATED_IMAGE fields
         run: |
-          # Sync everything except the fields we want to preserve
+          # Sync everything from source repo to target repo
           cp -r source_repo/bundle/* target_repo/bundle/
-          
+
+          # Remove existing RELATED_IMAGE fields and relatedImages section from the target CSV
+          sed -i '/RELATED_IMAGE_/d' target_repo/bundle/manifests/*.clusterserviceversion.yaml
+          sed -i '/relatedImages:/,/]/d' target_repo/bundle/manifests/*.clusterserviceversion.yaml
+
           # Restore the RELATED_IMAGE fields
           while read -r line; do
             key=$(echo "$line" | cut -d: -f1)
             value=$(echo "$line" | cut -d: -f2-)
             sed -i "/spec:/a $key:$value" target_repo/bundle/manifests/*.clusterserviceversion.yaml
           done < /tmp/backup_related_image.txt
-          
+
           # Restore the relatedImages section
-          sed -i '/^spec:/r /tmp/backup_relatedImages.txt' target_repo/bundle/manifests/*.clusterserviceversion.yaml
+          sed -i '/spec:/r /tmp/backup_relatedImages.txt' target_repo/bundle/manifests/*.clusterserviceversion.yaml
 
       - name: Sync Dockerfile
         run: |
