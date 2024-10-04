@@ -95,11 +95,7 @@
 #           git commit -m "Sync changes from source repo" || echo "No changes to commit"
 #           git push origin ${{ github.ref_name }}  # Push to the same branch in the target repo
 
-Loading history...
 
-
-Rashmi Panchamukhi
-  12:09 PM
 name: Sync Bundle from Operator Repo to RBC Repo
 
 on:
