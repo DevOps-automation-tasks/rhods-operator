@@ -154,28 +154,25 @@ jobs:
       - name: Load existing CSV to extract relatedImages
         id: extract_related_images
         run: |
-          # Define the source and target paths
-          TARGET_CSV=target_repo/bundle/manifests/rhods-operator.clusterserviceversion.yaml
-          SOURCE_CSV=source_repo/bundle/manifests/rhods-operator.clusterserviceversion.yaml
+         # Define the source and target paths
+         TARGET_CSV=target_repo/bundle/manifests/rhods-operator.clusterserviceversion.yaml
+         SOURCE_CSV=source_repo/bundle/manifests/rhods-operator.clusterserviceversion.yaml
 
-          # Step 1: Load existing target CSV and extract containerImage
-          #container_image=$(yq e '.spec.template.spec.containers[0].image' "$TARGET_CSV")
-          related_images=$(yq e '.spec.relatedImages' "$TARGET_CSV" | yq e -P -)
-          #related_images_upper=$(yq e '.spec.RELATED_IMAGES' "$TARGET_CSV" | yq e -P -)
+         # Step 1: Load existing target CSV and extract relatedImages
+         related_images=$(yq e '.spec.relatedImages' "$TARGET_CSV" | yq e -P -)
+         echo "Extracted relatedImages: $related_images"
 
-          #echo "Extracted containerImage: $container_image"
-          echo "Extracted relatedImages: $related_images"
-          #echo "Extracted RELATED_IMAGES: $related_images_upper"
+         # Step 2: Modify the source CSV to remove the relatedImages field
+         modified_source=$(yq e 'del(.spec.relatedImages, .spec.RELATED_IMAGES)' "$SOURCE_CSV")
 
-          modified_source=$(yq e 'del(.spec.relatedImages, .spec.RELATED_IMAGES, .spec.template.spec.containers[0].image)' "$SOURCE_CSV")
+         # Step 3: Merge source content with the target's relatedImages
+         updated_csv=$(echo "$modified_source" | yq e "
+           .spec.relatedImages = $related_images |
+         ")
 
-          # Step 3: Merge source content with the target's unchanged fields
-          updated_csv=$(echo "$modified_source" | yq e "
-            .spec.relatedImages = $related_images |
-          ")
+         # Step 4: Write the updated CSV back to the target
+         echo "$updated_csv" > "$TARGET_CSV"
 
-          # Step 4: Write the updated CSV back to the target
-          echo "$updated_csv" > "$TARGET_CSV"
 
       - name: Compare and Sync Changes
         run: |
