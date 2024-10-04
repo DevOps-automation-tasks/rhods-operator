@@ -139,19 +139,20 @@ jobs:
           sudo wget https://github.com/mikefarah/yq/releases/download/${VERSION}/yq_linux_amd64 -O /usr/bin/yq
           # Set permissions for yq
           sudo chmod +x /usr/bin/yq
-          
+
       - name: Remove unnecessary fields from CSV
         run: |
           sed -i '/olm.skipRange/d' source_repo/bundle/manifests/*.clusterserviceversion.yaml
           sed -i '/replaces/d' source_repo/bundle/manifests/*.clusterserviceversion.yaml
-          
+
       - name: Backup RELATED_IMAGE fields and relatedImages section
         run: |
           # Backup RELATED_IMAGE fields
           grep '^RELATED_IMAGE_' target_repo/bundle/manifests/*.clusterserviceversion.yaml > /tmp/backup_related_image.txt || true
+          
           # Backup relatedImages section
           sed -n '/relatedImages:/,/]/p' target_repo/bundle/manifests/*.clusterserviceversion.yaml > /tmp/backup_relatedImages.txt || true
-          
+
       - name: Retain current image digests in the RBC repo
         run: |
           # Backup current image digests
@@ -161,7 +162,7 @@ jobs:
           for image in $(grep -oP 'image:\s*\K\S+' /tmp/rbc_csv.yaml); do
             sed -i "s|image: .*|image: $image|g" source_repo/bundle/manifests/*.clusterserviceversion.yaml
           done
-          
+
       - name: Sync RELATED_IMAGE values (excluding annotations)
         run: |
           # Extract RELATED_IMAGE_* values from the target CSV
@@ -169,14 +170,14 @@ jobs:
             value=$(grep "$related_image:" /tmp/backup_related_image.txt | cut -d: -f2- | xargs) # Trim leading spaces from the value
             yq eval -i ".metadata.annotations[\"$related_image\"] = \"$value\"" source_repo/bundle/manifests/*.clusterserviceversion.yaml
           done < /tmp/backup_related_image.txt
-          
+
       - name: Sync Files Using rsync
         run: |
           # Sync bundle directory from source to target using rsync
           rsync -av --progress source_repo/bundle/ target_repo/bundle/
           # Sync Dockerfile
           rsync -av --progress source_repo/Dockerfiles/bundle.Dockerfile target_repo/bundle/Dockerfile
-          
+
       - name: Restore RELATED_IMAGE fields and relatedImages section
         run: |
           # Restore the RELATED_IMAGE fields
@@ -186,6 +187,7 @@ jobs:
             
             # Check if the RELATED_IMAGE field already exists
             existing_value=$(yq eval ".spec.containers[].env[] | select(.name == \"$key\").value" target_repo/bundle/manifests/*.clusterserviceversion.yaml)
+
             # If the RELATED_IMAGE exists, only update if it's empty
             if [ -n "$existing_value" ]; then
               echo "RELATED_IMAGE '$key' already exists with value '$existing_value'. Not updating."
@@ -195,10 +197,12 @@ jobs:
             fi
             
           done < /tmp/backup_related_image.txt
+
           # Restore the relatedImages section if it exists
           if [[ -s /tmp/backup_relatedImages.txt ]]; then
             # Check if the relatedImages already exist before setting
             related_images_present=$(yq eval 'has(.spec.relatedImages)' target_repo/bundle/manifests/*.clusterserviceversion.yaml)
+
             if [ "$related_images_present" == "false" ]; then
               # If it doesn't exist, create the relatedImages section
               echo "Creating relatedImages section."
@@ -209,21 +213,17 @@ jobs:
               yq eval -i '.spec.relatedImages += load("/tmp/backup_relatedImages.txt")' target_repo/bundle/manifests/*.clusterserviceversion.yaml
             fi
           fi
-          
-      - name: Debug Existing RELATED_IMAGE Fields in Source
+
+
+      - name: Debug Existing RELATED_IMAGE Fields
         run: |
-          echo "Existing RELATED_IMAGE fields in source CSV:"
-          yq eval '.spec.containers[].env[] | select(.name == "RELATED_IMAGE")' /path/to/source/csv.yaml
-          
-      - name: Debug Backup of RELATED_IMAGE Fields
+          echo "Existing RELATED_IMAGE fields before restoration:"
+          yq eval '.spec.containers[].env[] | select(.name == "RELATED_IMAGE")' target_repo/bundle/manifests/*.clusterserviceversion.yaml
+
+      - name: Debug Target CSV File After Restoration
         run: |
-          echo "Contents of /tmp/backup_related_image.txt:"
-          cat /tmp/backup_related_image.txt
-          
-      - name: Debug Target CSV File Structure
-        run: |
-          echo "Target CSV structure:"
-          yq eval '.spec.containers[]' target_repo/bundle/manifests/*.clusterserviceversion.yaml
+          echo "Target CSV after restoration:"
+          cat target_repo/bundle/manifests/*.clusterserviceversion.yaml
 
 
 
