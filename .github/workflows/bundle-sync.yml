@@ -174,50 +174,23 @@ jobs:
 
       - name: Restore relatedImages and RELATED_IMAGE environment variables
         run: |
-          csv_file="target_repo/bundle/manifests/rhods-operator.clusterserviceversion.yaml"
-          source_csv_file="source_repo/bundle/manifests/rhods-operator.clusterserviceversion.yaml"
+
+          # Load existing CSV
+          existing_csv=$(cat bundle/manifests/rhods-operator.clusterserviceversion.yaml)
           
-          # Ensure both CSV files exist before proceeding
-          if [ ! -f "$csv_file" ]; then
-              echo "Target CSV file not found: $csv_file"
-              exit 1
-          fi
+          # Extract the relatedImages section
+          related_images=$(echo "$existing_csv" | yq '.spec.relatedImages')
           
-          if [ ! -f "$source_csv_file" ]; then
-              echo "Source CSV file not found: $source_csv_file"
-              exit 1
-          fi
           
-          # 1. Extract the `relatedImages`, `RELATED_IMAGE_*`, and `containerImage` sections from the target CSV
-          related_images=$(yq eval '.spec.relatedImages' "$csv_file")
-          related_envs=$(yq eval '.spec.install.spec.deployments[].spec.template.spec.containers[].env[] | select(.name | test("^RELATED_IMAGE_"))' "$csv_file")
-          container_image=$(yq eval '.metadata.annotations."containerImage"' "$csv_file")
+          # For example, if you're adding a new spec field or updating other parts:
+          new_csv=$(echo "$existing_csv" | yq '...') # your other modifications
           
-          # 2. Remove the same sections from the source CSV to avoid overwriting them in the target CSV
-          yq eval 'del(.spec.relatedImages)' -i "$source_csv_file"
-          yq eval 'del(.spec.install.spec.deployments[].spec.template.spec.containers[].env[] | select(.name | test("^RELATED_IMAGE_")))' -i "$source_csv_file"
-          yq eval 'del(.metadata.annotations."containerImage")' -i "$source_csv_file"
+          # Restore the relatedImages section back into the new CSV
+          updated_csv=$(echo "$new_csv" | yq --argjson relatedImages "$related_images" '.spec.relatedImages = $relatedImages')
           
-          # 3. Merge the modified source CSV into the target CSV, applying only the necessary changes
-          yq eval-all 'select(fileIndex == 0) * select(fileIndex == 1)' "$csv_file" "$source_csv_file" > "${csv_file}.tmp"
-          
-          # 4. Restore the extracted sections back into the merged CSV
-          # We wrap the extracted values in arrays if necessary to ensure correct append syntax
-          echo "$related_images" | yq eval -P - > related_images.yml
-          yq eval -i ".spec.relatedImages = (load(\"related_images.yml\"))" "${csv_file}.tmp"
-          
-          echo "$related_envs" | yq eval -P - > related_envs.yml
-          yq eval -i ".spec.install.spec.deployments[].spec.template.spec.containers[].env += (load(\"related_envs.yml\"))" "${csv_file}.tmp"
-          
-          yq eval -i ".metadata.annotations.\"containerImage\" = \"$container_image\"" "${csv_file}.tmp"
-          
-          # 5. Replace the target CSV with the final merged version
-          mv "${csv_file}.tmp" "$csv_file"
-          
-          # Cleanup temporary files
-          rm -f related_images.yml related_envs.yml
-          
-          echo "Successfully applied changes while preserving relatedImages, RELATED_IMAGE_*, and containerImage sections."
+          # Write the updated CSV back to the file
+          echo "$updated_csv" > bundle/manifests/rhods-operator.clusterserviceversion.yaml
+
       
       - name: Sync Dockerfile
         run: |
