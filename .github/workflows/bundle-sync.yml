@@ -202,15 +202,22 @@ jobs:
           yq eval-all 'select(fileIndex == 0) * select(fileIndex == 1)' "$csv_file" "$source_csv_file" > "${csv_file}.tmp"
           
           # 4. Restore the extracted sections back into the merged CSV
-          yq eval -i ".spec.relatedImages = $related_images" "${csv_file}.tmp"
-          yq eval -i ".spec.install.spec.deployments[].spec.template.spec.containers[].env += $related_envs" "${csv_file}.tmp"
+          # We wrap the extracted values in arrays if necessary to ensure correct append syntax
+          echo "$related_images" | yq eval -P - > related_images.yml
+          yq eval -i ".spec.relatedImages = (load(\"related_images.yml\"))" "${csv_file}.tmp"
+          
+          echo "$related_envs" | yq eval -P - > related_envs.yml
+          yq eval -i ".spec.install.spec.deployments[].spec.template.spec.containers[].env += (load(\"related_envs.yml\"))" "${csv_file}.tmp"
+          
           yq eval -i ".metadata.annotations.\"containerImage\" = \"$container_image\"" "${csv_file}.tmp"
           
           # 5. Replace the target CSV with the final merged version
           mv "${csv_file}.tmp" "$csv_file"
           
+          # Cleanup temporary files
+          rm -f related_images.yml related_envs.yml
+          
           echo "Successfully applied changes while preserving relatedImages, RELATED_IMAGE_*, and containerImage sections."
-
       
       - name: Sync Dockerfile
         run: |
