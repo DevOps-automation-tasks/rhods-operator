@@ -151,22 +151,25 @@ jobs:
           yq eval 'del(.annotations."operators.operatorframework.io.bundle.channels.v1")' -i source_repo/bundle/metadata/annotations.yaml
           yq eval 'del(.annotations."operators.operatorframework.io.bundle.channel.default.v1")' -i source_repo/bundle/metadata/annotations.yaml
 
-      - name: Restore relatedImages and RELATED_IMAGE environment variables
+      - name: Merge source changes into target CSV
         run: |
-          # Load existing CSV
-          existing_csv=$(cat target_repo/bundle/manifests/rhods-operator.clusterserviceversion.yaml)
+          # Define the source and target paths
+          SOURCE_CSV=source_repo/bundle/manifests/rhods-operator.clusterserviceversion.yaml
+          TARGET_CSV=target_repo/bundle/manifests/rhods-operator.clusterserviceversion.yaml
 
-          # Extract the relatedImages section
-          related_images=$(echo "$existing_csv" | yq e '.spec.relatedImages' -)
+          # Step 1: Load existing target CSV and extract relatedImages and RELATED_IMAGES
+          related_images=$(yq e '.spec.relatedImages' "$TARGET_CSV")
+          related_images_upper=$(yq e '.spec.RELATED_IMAGES' "$TARGET_CSV")
 
-          # For example, if you're adding a new spec field or updating other parts:
-          new_csv=$(echo "$existing_csv" | yq e '...') # your other modifications
+          # Step 2: Load the source CSV and remove the relatedImages sections
+          source_csv=$(yq e 'del(.spec.relatedImages, .spec.RELATED_IMAGES)' "$SOURCE_CSV")
 
-          # Restore the relatedImages section back into the new CSV
-          updated_csv=$(echo "$new_csv" | yq e ".spec.relatedImages = $related_images" -)
+          # Step 3: Merge source content with the target's relatedImages
+          # This assumes that you want to keep the other content from the target
+          updated_csv=$(echo "$source_csv" | yq e ".spec.relatedImages = $related_images" - | yq e ".spec.RELATED_IMAGES = $related_images_upper" -)
 
-          # Write the updated CSV back to the file
-          echo "$updated_csv" > target_repo/bundle/manifests/rhods-operator.clusterserviceversion.yaml
+          # Step 4: Write the updated CSV back to the target
+          echo "$updated_csv" > "$TARGET_CSV"
 
 
       - name: Compare and Sync Changes
