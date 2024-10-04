@@ -215,15 +215,21 @@ jobs:
           fi
 
 
-      - name: Debug Existing RELATED_IMAGE Fields
+      - name: Debug Existing RELATED_IMAGE Fields in Source
         run: |
-          echo "Existing RELATED_IMAGE fields before restoration:"
-          yq eval '.spec.containers[].env[] | select(.name == "RELATED_IMAGE")' target_repo/bundle/manifests/*.clusterserviceversion.yaml
+          echo "Existing RELATED_IMAGE fields in source CSV:"
+          yq eval '.spec.containers[].env[] | select(.name == "RELATED_IMAGE")' /path/to/source/csv.yaml
 
-      - name: Debug Target CSV File After Restoration
+      - name: Debug Backup of RELATED_IMAGE Fields
         run: |
-          echo "Target CSV after restoration:"
-          cat target_repo/bundle/manifests/*.clusterserviceversion.yaml
+          echo "Contents of /tmp/backup_related_image.txt:"
+          cat /tmp/backup_related_image.txt
+
+      - name: Debug Target CSV File Structure
+        run: |
+          echo "Target CSV structure:"
+          yq eval '.spec.containers[]' target_repo/bundle/manifests/*.clusterserviceversion.yaml
+
 
      # - name: Commit and Push Changes to Target Repo
      #   run: |
