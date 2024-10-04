@@ -175,8 +175,9 @@ jobs:
               if [ -f "$target_file" ]; then
                 if ! diff -q "$file" "$target_file" > /dev/null 2>&1; then
                   echo "Updating $target_file"
-                  # Instead of overwriting the file, append the changes
-                  cat "$file" >> "$target_file"
+                  # Instead of overwriting the file, compare and sync
+                  diff -u "$file" "$target_file" > /tmp/diff.patch
+                  patch -p0 -d "$target_dir" < /tmp/diff.patch
                 else
                   echo "No changes in $target_file"
                 fi
@@ -191,12 +192,13 @@ jobs:
           sync_files "source_repo/bundle" "target_repo/bundle"
           
           # Sync Dockerfile
-          if [ -f "source_repo/Dockerfiles/bundle.Dockerfile" ]; then
+          if [ -f "source_repo/Dockerfiles/bundle.D ockerfile" ]; then
             target_file="target_repo/Dockerfiles/bundle.Dockerfile"
             if [ -f "$target_file" ]; then
               if ! diff -q "source_repo/Dockerfiles/bundle.Dockerfile" "$target_file" > /dev/null 2>&1; then
                 echo "Updating $target_file"
-                cat "source_repo/Dockerfiles/bundle.Dockerfile" > "$target_file"
+                diff -u "source_repo/Dockerfiles/bundle.Dockerfile" "$target_file" > /tmp/diff.patch
+                patch -p0 -d "$(dirname "$target_file")" < /tmp/diff.patch
               else
                 echo "No changes in $target_file"
               fi
@@ -215,7 +217,3 @@ jobs:
           git add .
           git commit -m "Sync changes from source repo" || echo "No changes to commit"
           git push origin ${{ github.ref_name }}
-
-
-          git push origin ${{ github.ref_name }}  # Push to the same branch in the target repo
-
