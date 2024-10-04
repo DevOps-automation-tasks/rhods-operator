@@ -188,23 +188,28 @@ jobs:
               exit 1
           fi
           
-          # Backup the original target file before modifications
-          cp "$csv_file" "${csv_file}.backup"
+          # 1. Extract the `relatedImages`, `RELATED_IMAGE_*`, and `containerImage` sections from the target CSV
+          related_images=$(yq eval '.spec.relatedImages' "$csv_file")
+          related_envs=$(yq eval '.spec.install.spec.deployments[].spec.template.spec.containers[].env[] | select(.name | test("^RELATED_IMAGE_"))' "$csv_file")
+          container_image=$(yq eval '.metadata.annotations."containerImage"' "$csv_file")
           
-          # 1. Remove sections from the source CSV that we do NOT want to copy over
-          # These include: relatedImages, RELATED_IMAGE_*, and containerImage
+          # 2. Remove the same sections from the source CSV to avoid overwriting them in the target CSV
           yq eval 'del(.spec.relatedImages)' -i "$source_csv_file"
           yq eval 'del(.spec.install.spec.deployments[].spec.template.spec.containers[].env[] | select(.name | test("^RELATED_IMAGE_")))' -i "$source_csv_file"
           yq eval 'del(.metadata.annotations."containerImage")' -i "$source_csv_file"
           
-          # 2. Apply changes from the source CSV to the target CSV
-          # We will merge the modified source CSV into the target CSV
-          yq eval-all 'select(fileIndex == 0) * select(fileIndex == 1)' "$csv_file" "$source_csv_file" > "${csv_file}.merged"
+          # 3. Merge the modified source CSV into the target CSV, applying only the necessary changes
+          yq eval-all 'select(fileIndex == 0) * select(fileIndex == 1)' "$csv_file" "$source_csv_file" > "${csv_file}.tmp"
           
-          # Replace the target CSV with the merged content, preserving relatedImages, RELATED_IMAGE_*, and containerImage
-          mv "${csv_file}.merged" "$csv_file"
+          # 4. Restore the extracted sections back into the merged CSV
+          yq eval -i ".spec.relatedImages = $related_images" "${csv_file}.tmp"
+          yq eval -i ".spec.install.spec.deployments[].spec.template.spec.containers[].env += $related_envs" "${csv_file}.tmp"
+          yq eval -i ".metadata.annotations.\"containerImage\" = \"$container_image\"" "${csv_file}.tmp"
           
-          echo "Changes from source CSV have been applied to the target CSV, while preserving relatedImages, RELATED_IMAGE_*, and containerImage."
+          # 5. Replace the target CSV with the final merged version
+          mv "${csv_file}.tmp" "$csv_file"
+          
+          echo "Successfully applied changes while preserving relatedImages, RELATED_IMAGE_*, and containerImage sections."
 
       
       - name: Sync Dockerfile
