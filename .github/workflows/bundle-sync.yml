@@ -157,15 +157,11 @@ jobs:
 
       - name: Sync RELATED_IMAGE values (excluding annotations)
         run: |
-          # Using yq to sync RELATED_IMAGE_* values, excluding the annotations
-          yq eval-all 'select(filename == "source_repo/bundle/manifests/*.clusterserviceversion.yaml") as $source 
-                      | select(filename == "/tmp/rbc_csv.yaml") as $target
-                      | $source.metadata.annotations |= ($target.metadata.annotations | select(. | startswith("RELATED_IMAGE_"))) 
-                      | $source' \
-                      source_repo/bundle/manifests/*.clusterserviceversion.yaml /tmp/rbc_csv.yaml > updated_csv.yaml
-          
-          # Replace original CSV with the updated one
-          mv updated_csv.yaml source_repo/bundle/manifests/*.clusterserviceversion.yaml
+          # Extract RELATED_IMAGE_* values from the target CSV
+          for related_image in $(yq eval '.metadata.annotations | keys | .[] | select(startswith("RELATED_IMAGE_"))' /tmp/rbc_csv.yaml); do
+            value=$(yq eval ".metadata.annotations[\"$related_image\"]" /tmp/rbc_csv.yaml)
+            yq eval -i ".metadata.annotations[\"$related_image\"] = \"$value\"" source_repo/bundle/manifests/*.clusterserviceversion.yaml
+          done
 
       - name: Sync Files Using rsync
         run: |
