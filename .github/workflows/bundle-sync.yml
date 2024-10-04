@@ -95,7 +95,6 @@
 #           git commit -m "Sync changes from source repo" || echo "No changes to commit"
 #           git push origin ${{ github.ref_name }}  # Push to the same branch in the target repo
 
-
 name: Sync Bundle from Operator Repo to RBC Repo
 
 on:
@@ -167,10 +166,10 @@ jobs:
       - name: Sync RELATED_IMAGE values (excluding annotations)
         run: |
           # Extract RELATED_IMAGE_* values from the target CSV
-          for related_image in $(yq eval '.metadata.annotations | keys | .[] | select(startswith("RELATED_IMAGE_"))' /tmp/rbc_csv.yaml); do
-            value=$(yq eval ".metadata.annotations[\"$related_image\"]" /tmp/rbc_csv.yaml)
+          while IFS= read -r related_image; do
+            value=$(grep "$related_image:" /tmp/backup_related_image.txt | cut -d: -f2- | xargs) # Trim leading spaces from the value
             yq eval -i ".metadata.annotations[\"$related_image\"] = \"$value\"" source_repo/bundle/manifests/*.clusterserviceversion.yaml
-          done
+          done < /tmp/backup_related_image.txt
 
       - name: Sync Files Using rsync
         run: |
@@ -207,3 +206,4 @@ jobs:
           git add .
           git commit -m "Sync changes from source repo" || echo "No changes to commit"
           git push origin ${{ github.ref_name }}
+
