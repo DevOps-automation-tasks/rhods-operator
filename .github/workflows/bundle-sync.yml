@@ -95,6 +95,7 @@
 #           git commit -m "Sync changes from source repo" || echo "No changes to commit"
 #           git push origin ${{ github.ref_name }}  # Push to the same branch in the target repo
 
+
 name: Sync Bundle from Operator Repo to RBC Repo
 
 on:
@@ -144,6 +145,14 @@ jobs:
         run: |
           sed -i '/olm.skipRange/d' source_repo/bundle/manifests/*.clusterserviceversion.yaml
           sed -i '/replaces/d' source_repo/bundle/manifests/*.clusterserviceversion.yaml
+
+      - name: Backup RELATED_IMAGE fields and relatedImages section
+        run: |
+          # Backup RELATED_IMAGE fields
+          grep '^RELATED_IMAGE_' target_repo/bundle/manifests/*.clusterserviceversion.yaml > /tmp/backup_related_image.txt || true
+          
+          # Backup relatedImages section
+          sed -n '/relatedImages:/,/]/p' target_repo/bundle/manifests/*.clusterserviceversion.yaml > /tmp/backup_relatedImages.txt || true
 
       - name: Retain current image digests in the RBC repo
         run: |
