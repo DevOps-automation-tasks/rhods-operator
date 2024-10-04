@@ -177,28 +177,34 @@ jobs:
           csv_file="target_repo/bundle/manifests/rhods-operator.clusterserviceversion.yaml"
           source_csv_file="source_repo/bundle/manifests/rhods-operator.clusterserviceversion.yaml"
           
-          # Ensure the CSV file exists before proceeding
+          # Ensure both CSV files exist before proceeding
           if [ ! -f "$csv_file" ]; then
-              echo "CSV file not found: $csv_file"
+              echo "Target CSV file not found: $csv_file"
               exit 1
           fi
           
-          # Backup the original source file
-          cp "$source_csv_file" "${source_csv_file}.backup"
+          if [ ! -f "$source_csv_file" ]; then
+              echo "Source CSV file not found: $source_csv_file"
+              exit 1
+          fi
           
-          # Preserve the existing relatedImages section from the target CSV and replace it in the source CSV
-          sed -n '/relatedImages:/,/^\s*-/p' "$csv_file" > temp_related_images.txt
-          sed -i '/relatedImages:/,/^\s*-/d' "$source_csv_file"
-          sed -i '/^spec:/r temp_related_images.txt' "$source_csv_file"
-          rm temp_related_images.txt
+          # Backup the original target file before modifications
+          cp "$csv_file" "${csv_file}.backup"
           
-          # Preserve RELATED_IMAGE_* environment variables
-          sed -n '/RELATED_IMAGE_/p' "$csv_file" > temp_related_envs.txt
-          sed -i '/RELATED_IMAGE_/d' "$source_csv_file"
-          sed -i '/env:/r temp_related_envs.txt' "$source_csv_file"
-          rm temp_related_envs.txt
+          # 1. Remove sections from the source CSV that we do NOT want to copy over
+          # These include: relatedImages, RELATED_IMAGE_*, and containerImage
+          yq eval 'del(.spec.relatedImages)' -i "$source_csv_file"
+          yq eval 'del(.spec.install.spec.deployments[].spec.template.spec.containers[].env[] | select(.name | test("^RELATED_IMAGE_")))' -i "$source_csv_file"
+          yq eval 'del(.metadata.annotations."containerImage")' -i "$source_csv_file"
           
-          echo "relatedImages and RELATED_IMAGE_* environment variables have been preserved and restored."
+          # 2. Apply changes from the source CSV to the target CSV
+          # We will merge the modified source CSV into the target CSV
+          yq eval-all 'select(fileIndex == 0) * select(fileIndex == 1)' "$csv_file" "$source_csv_file" > "${csv_file}.merged"
+          
+          # Replace the target CSV with the merged content, preserving relatedImages, RELATED_IMAGE_*, and containerImage
+          mv "${csv_file}.merged" "$csv_file"
+          
+          echo "Changes from source CSV have been applied to the target CSV, while preserving relatedImages, RELATED_IMAGE_*, and containerImage."
 
       
       - name: Sync Dockerfile
