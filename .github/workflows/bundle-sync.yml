@@ -157,22 +157,17 @@ jobs:
           # Define the source and target paths
           TARGET_CSV=target_repo/bundle/manifests/rhods-operator.clusterserviceversion.yaml
           SOURCE_CSV=source_repo/bundle/manifests/rhods-operator.clusterserviceversion.yaml
-          
-          # Step 1: Load existing target CSV and extract relatedImages and RELATED_IMAGES
-          related_images=$(awk '/relatedImages:/{flag=1;next}/^[[:space:]]*$/{flag=0}flag' "$TARGET_CSV" | sed 's/^[ \t]*//;s/[ \t]*$//')
-          related_images_upper=$(awk '/RELATED_IMAGES:/{flag=1;next}/^[[:space:]]*$/{flag=0}flag' "$TARGET_CSV" | sed 's/^[ \t]*//;s/[ \t]*$//')
 
-          # Step 2: Load the source CSV and remove unwanted fields
-          sed -i.bak '/skipRange/d; /replaces/d' "$SOURCE_CSV"
+          # Step 1: Load existing target CSV and extract relatedImages and RELATED_IMAGES
+          related_images=$(yq e '.spec.relatedImages' "$TARGET_CSV" | yq e -P -)
+          related_images_upper=$(yq e '.spec.RELATED_IMAGES' "$TARGET_CSV" | yq e -P -)
 
           # Step 3: Merge source content with the target's relatedImages
-          # Add back the relatedImages into the modified source CSV
-          awk -v images="$related_images" -v images_upper="$related_images_upper" '
-          BEGIN { print "spec:" }
-          /^spec:/ { print; print "  relatedImages: " images; print "  RELATED_IMAGES: " images_upper; next }
-          { print }
-          ' "$SOURCE_CSV" > temp.yaml && mv temp.yaml "$TARGET_CSV"
+          # Read modified source CSV and add back relatedImages sections
+          updated_csv=$(yq e ".spec.relatedImages = $related_images | .spec.RELATED_IMAGES = $related_images_upper" "$SOURCE_CSV")
 
+          # Step 4: Write the updated CSV back to the target
+          echo "$updated_csv" > "$TARGET_CSV"
 
       - name: Compare and Sync Changes
         run: |
