@@ -187,7 +187,6 @@ jobs:
             
             # Check if the RELATED_IMAGE field already exists
             existing_value=$(yq eval ".spec.containers[].env[] | select(.name == \"$key\").value" target_repo/bundle/manifests/*.clusterserviceversion.yaml)
-
             # If the RELATED_IMAGE exists, only update if it's empty
             if [ -n "$existing_value" ]; then
               echo "RELATED_IMAGE '$key' already exists with value '$existing_value'. Not updating."
@@ -202,7 +201,6 @@ jobs:
           if [[ -s /tmp/backup_relatedImages.txt ]]; then
             # Check if the relatedImages already exist before setting
             related_images_present=$(yq eval 'has(.spec.relatedImages)' target_repo/bundle/manifests/*.clusterserviceversion.yaml)
-
             if [ "$related_images_present" == "false" ]; then
               # If it doesn't exist, create the relatedImages section
               echo "Creating relatedImages section."
@@ -214,11 +212,10 @@ jobs:
             fi
           fi
 
-
       - name: Debug Existing RELATED_IMAGE Fields in Source
         run: |
           echo "Existing RELATED_IMAGE fields in source CSV:"
-          yq eval '.spec.containers[].env[] | select(.name == "RELATED_IMAGE")' /path/to/source/csv.yaml
+          yq eval '.spec.containers[].env[] | select(.name == "RELATED_IMAGE")' source_repo/bundle/manifests/*.clusterserviceversion.yaml
 
       - name: Debug Backup of RELATED_IMAGE Fields
         run: |
@@ -229,6 +226,7 @@ jobs:
         run: |
           echo "Target CSV structure:"
           yq eval '.spec.containers[]' target_repo/bundle/manifests/*.clusterserviceversion.yaml
+
 
 
      # - name: Commit and Push Changes to Target Repo
